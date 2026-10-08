@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+    .field-input {
+        @apply min-h-12 w-full rounded-lg border-stone-300 bg-stone-50 px-3 text-base text-stone-900 focus:border-forest focus:ring-forest;
+    }
+}

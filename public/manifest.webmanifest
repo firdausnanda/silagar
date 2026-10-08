@@ -1,0 +1,16 @@
+{
+    "name": "SILAGAR - Sistem Informasi Lahan Garapan",
+    "short_name": "SILAGAR",
+    "id": "/",
+    "description": "Sistem Informasi Lahan Garapan untuk pendataan bidang dan penggarap.",
+    "lang": "id",
+    "start_url": "/dashboard",
+    "scope": "/",
+    "display": "standalone",
+    "background_color": "#f0fdf1",
+    "theme_color": "#143e2c",
+    "icons": [
+        { "src": "/app-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+        { "src": "/app-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+    ]
+}
