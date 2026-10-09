@@ -19,6 +19,7 @@ class CDKUserSeeder extends Seeder
         }
 
         Role::findOrCreate('user', 'web');
+        Role::findOrCreate('admin', 'web');
 
         $users = [
             [
@@ -125,6 +126,31 @@ class CDKUserSeeder extends Seeder
             if (! $account->hasRole('admin')) {
                 $account->assignRole('user');
             }
+        }
+
+        $admins = [
+            [
+                'name' => 'Firdaus Nanda Christian, S.Kom',
+                'email' => 'firdausnanda46@gmail.com',
+                'password' => 'password123',
+            ],
+            [
+                'name' => 'Ir. Agus Dwi Prasetyo, S.ST., M.Ling',
+                'email' => 'agusdwiprasetyo80@gmail.com',
+                'password' => 'password123',
+            ],
+        ];
+
+        foreach ($admins as $admin) {
+            $account = User::firstOrCreate(
+                ['email' => $admin['email']],
+                [
+                    'name' => $admin['name'],
+                    'password' => $admin['password'],
+                    'email_verified_at' => now(),
+                ]
+            );
+            $account->assignRole('admin');
         }
     }
 }

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import BusyIndicator from '../../Components/BusyIndicator';
 import ApplicationLogo from '../../Components/ApplicationLogo';
 
-export default function Login({ status, canResetPassword }) {
+export default function Login({ status, canResetPassword, googleLoginEnabled = false }) {
     const { data, setData, post, processing, errors, reset } = useForm({
         email: '',
         password: '',
@@ -47,6 +47,12 @@ export default function Login({ status, canResetPassword }) {
                     {status && (
                         <p role="status" className="mb-6 rounded-xl bg-primary-fixed px-4 py-3 text-sm text-on-primary-fixed font-medium">
                             {status}
+                        </p>
+                    )}
+
+                    {errors.google && (
+                        <p role="alert" className="mb-6 rounded-xl bg-error/10 px-4 py-3 text-sm font-medium text-error">
+                            {errors.google}
                         </p>
                     )}
 
@@ -142,6 +148,29 @@ export default function Login({ status, canResetPassword }) {
                             {processing ? 'Memverifikasi...' : 'Masuk ke Dasbor'}
                         </button>
                     </form>
+
+                    {googleLoginEnabled && (
+                        <div className="mt-6">
+                            <div className="mb-6 flex items-center gap-3" aria-hidden="true">
+                                <span className="h-px flex-1 bg-outline-variant/60" />
+                                <span className="text-xs font-medium text-on-surface-variant">atau</span>
+                                <span className="h-px flex-1 bg-outline-variant/60" />
+                            </div>
+                            <a
+                                href={route('login.google.redirect')}
+                                className="flex min-h-12 w-full items-center justify-center gap-3 rounded-xl border border-outline-variant/70 bg-surface-container-lowest px-4 text-sm font-semibold text-forest transition-colors hover:bg-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest"
+                            >
+                                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 48 48">
+                                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5Z" />
+                                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.28 5.48-4.8 7.18l7.73 6C44.38 38.03 46.98 31.68 46.98 24.55Z" />
+                                    <path fill="#FBBC05" d="M10.53 28.59A14.4 14.4 0 0 1 9.75 24c0-1.59.27-3.13.76-4.59l-7.98-6.2A23.9 23.9 0 0 0 0 24c0 3.87.93 7.52 2.56 10.78l7.97-6.19Z" />
+                                    <path fill="#34A853" d="M24 48c6.47 0 11.9-2.13 15.87-5.8l-7.73-6c-2.15 1.45-4.92 2.3-8.14 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.2C6.51 42.62 14.62 48 24 48Z" />
+                                </svg>
+                                Masuk dengan Google
+                            </a>
+                            <p className="mt-3 text-center text-xs text-on-surface-variant">Gunakan email yang sudah terdaftar.</p>
+                        </div>
+                    )}
                 </section>
                 
                 <footer className="mt-10 text-center text-xs text-on-surface-variant/60">

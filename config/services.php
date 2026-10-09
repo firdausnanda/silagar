@@ -42,4 +42,9 @@ return [
         'folder' => env('GOOGLE_DRIVE_FOLDER'),
     ],
 
+    'google_login' => [
+        'client_id' => env('GOOGLE_LOGIN_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_LOGIN_CLIENT_SECRET'),
+    ],
+
 ];

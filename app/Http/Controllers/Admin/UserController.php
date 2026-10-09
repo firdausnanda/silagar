@@ -73,7 +73,11 @@ class UserController extends Controller
             unset($data['password']);
         }
 
-        $user->update($data);
+        $user->fill($data);
+        if ($user->isDirty('email')) {
+            $user->google_sub = null;
+        }
+        $user->save();
 
         return redirect()->route('admin.users.index')->with('status', 'Akun petugas diperbarui.');
     }
