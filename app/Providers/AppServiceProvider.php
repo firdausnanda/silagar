@@ -29,6 +29,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('access-admin', fn (User $user): bool => $user->hasRole('admin'));
         Gate::define('access-petugas', fn (User $user): bool => $user->hasRole('user') && ! $user->hasRole('admin'));
         Gate::define('viewLogViewer', fn (?User $user): bool => $user?->is_active && $user->hasRole('admin'));
+        Gate::define('viewPulse', fn (?User $user): bool => $user?->is_active && $user->hasRole('admin'));
         Gate::define('deleteLogFile', fn (?User $user, LogFile $file): bool => false);
         Gate::define('deleteLogFolder', fn (?User $user, LogFolder $folder): bool => false);
     }

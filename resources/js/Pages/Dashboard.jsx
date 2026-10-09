@@ -1,14 +1,17 @@
 import axios from 'axios';
+import { TrashIcon } from '@heroicons/react/24/outline';
 import { Head, Link, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Swal from 'sweetalert2';
+import 'sweetalert2/dist/sweetalert2.min.css';
 import BusyIndicator from '../Components/BusyIndicator';
 import Modal from '../Components/Modal';
 import SensusExportModal from '../Components/SensusExportModal';
 import SensusPhoto from '../Components/SensusPhoto';
 import { countEnteredRecords, hasActiveSensusSync, mergeSensusRecords, selectDashboardEntries } from '../Offline/sensusData';
 import { consumeSavedSensusNotice } from '../Offline/sensusFeedback';
-import { cacheServerRecords, listEntries, reconcileCompleteServerRecords, saveEntry } from '../Offline/sensusStore';
-import { syncForOwner, useSensusRecords } from '../Offline/sensusSync';
+import { cacheServerRecords, getEntry, listEntries, reconcileCompleteServerRecords, removeSensusRecord, saveEntry } from '../Offline/sensusStore';
+import { syncForOwner, useSensusRecords, withSensusSyncPaused } from '../Offline/sensusSync';
 
 const numberFormat = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 });
 const dateFormat = new Intl.DateTimeFormat('id-ID', {
@@ -40,6 +43,7 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
     const [editData, setEditData] = useState({ nama: '', no_hp: '', luas_garapan: '', lama_menggarap: '' });
     const [editError, setEditError] = useState('');
     const [editSaving, setEditSaving] = useState(false);
+    const [deletingUuid, setDeletingUuid] = useState(null);
     const [exportOpen, setExportOpen] = useState(false);
     const [online, setOnline] = useState(navigator.onLine);
     const [offlineReady, setOfflineReady] = useState(
@@ -58,6 +62,7 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
     const [saveNotice, setSaveNotice] = useState('');
     const [offlineVisibleCount, setOfflineVisibleCount] = useState(30);
     const dialogRef = useRef(null);
+    const editModalPanelRef = useRef(null);
     const requestGeneration = useRef(0);
     const baseRecords = useRef(initialRecords);
     const baseNextCursor = useRef(initialNextCursor);
@@ -340,6 +345,17 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
 
     const saveEdit = async (event) => {
         event.preventDefault();
+        if (editSaving) {
+            return;
+        }
+
+        const alert = Swal.mixin({
+            target: editModalPanelRef.current,
+            confirmButtonColor: '#143E2C',
+            cancelButtonColor: '#6B7280',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+        });
         const nama = editData.nama.trim();
         const noHp = editData.no_hp.trim();
         const luas = Number(editData.luas_garapan);
@@ -348,7 +364,22 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
             || !/^\d+(\.\d{1,2})?$/.test(editData.luas_garapan)
             || !Number.isFinite(luas) || luas <= 0 || luas > 999999.99
             || !Number.isInteger(lama) || lama < 0 || lama > 150) {
-            setEditError('Periksa nama, nomor HP, luas garapan, dan lama menggarap.');
+            const message = 'Periksa nama, nomor HP, luas garapan, dan lama menggarap.';
+            setEditError(message);
+            await alert.fire({ icon: 'error', title: 'Data belum valid', text: message, confirmButtonText: 'Periksa lagi' });
+            return;
+        }
+
+        const { isConfirmed } = await alert.fire({
+            icon: 'question',
+            title: 'Simpan perubahan?',
+            text: 'Perubahan akan disimpan di perangkat, lalu dikirim saat koneksi tersedia.',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, simpan',
+            cancelButtonText: 'Batal',
+            reverseButtons: true,
+        });
+        if (!isConfirmed) {
             return;
         }
 
@@ -366,13 +397,149 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
                 luas_garapan: String(luas),
                 lama_menggarap: String(lama),
             });
-            setEditRecord(null);
             setSaveNotice('Perubahan tersimpan di perangkat. Status pengiriman terlihat di daftar bidang.');
             syncForOwner(ownerId).catch(() => {});
+            await alert.fire({
+                icon: 'success',
+                title: 'Perubahan tersimpan',
+                text: 'Data tersimpan di perangkat. Status pengiriman terlihat di daftar bidang.',
+                confirmButtonText: 'Mengerti',
+            });
+            setEditRecord(null);
         } catch (error) {
-            setEditError('Perubahan belum tersimpan di perangkat. Periksa ruang penyimpanan dan coba lagi.');
+            const message = 'Perubahan belum tersimpan di perangkat. Periksa ruang penyimpanan dan coba lagi.';
+            setEditError(message);
+            await alert.fire({ icon: 'error', title: 'Gagal menyimpan', text: message, confirmButtonText: 'Coba lagi' });
         } finally {
             setEditSaving(false);
+        }
+    };
+
+    const deleteRecord = async (record) => {
+        if (deletingUuid !== null || record.status === 'sending') {
+            return;
+        }
+
+        const clientUuid = record.client_uuid ?? `server-${record.id}`;
+        const originalServerId = record.server_id ?? record.id ?? record.server_record?.id ?? null;
+        if (originalServerId !== null && !online) {
+            await Swal.fire({
+                icon: 'info',
+                title: 'Koneksi diperlukan',
+                text: 'Bidang yang sudah terkirim hanya dapat dihapus saat perangkat terhubung ke internet.',
+                confirmButtonText: 'Mengerti',
+                confirmButtonColor: '#143E2C',
+            });
+            return;
+        }
+
+        const { isConfirmed } = await Swal.fire({
+            icon: 'warning',
+            title: 'Hapus data bidang?',
+            text: `Data ${record.nama} dan fotonya akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.`,
+            showCancelButton: true,
+            confirmButtonText: 'Ya, hapus',
+            cancelButtonText: 'Batal',
+            confirmButtonColor: '#B91C1C',
+            cancelButtonColor: '#6B7280',
+            reverseButtons: true,
+        });
+        if (!isConfirmed) {
+            return;
+        }
+
+        setDeletingUuid(clientUuid);
+        let deletedOnServer = false;
+        Swal.fire({
+            title: 'Menghapus data...',
+            text: 'Tunggu sampai proses selesai.',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            didOpen: () => Swal.showLoading(),
+        });
+
+        try {
+            const deletedServerId = await withSensusSyncPaused(ownerId, async () => {
+                const storedEntry = await getEntry(clientUuid);
+                const ownedEntry = Number(storedEntry?.owner_id) === Number(ownerId) ? storedEntry : null;
+                const serverId = ownedEntry?.server_record?.id ?? ownedEntry?.server_id ?? ownedEntry?.id ?? originalServerId;
+
+                if (serverId !== null) {
+                    if (!navigator.onLine) {
+                        throw new Error('Koneksi internet diperlukan untuk menghapus bidang yang sudah terkirim.');
+                    }
+
+                    try {
+                        await axios.delete(route('sensus.destroy', serverId), {
+                            headers: { Accept: 'application/json' },
+                            withXSRFToken: true,
+                        });
+                    } catch (error) {
+                        if (error?.response?.status !== 404) {
+                            throw error;
+                        }
+                    }
+                    deletedOnServer = true;
+                }
+
+                await removeSensusRecord(ownerId, clientUuid, serverId);
+
+                return serverId;
+            });
+
+            if (deletedServerId !== null) {
+                requestGeneration.current += 1;
+                const isDeletedRecord = (item) => item.client_uuid === clientUuid || Number(item.id) === Number(deletedServerId);
+                baseRecords.current = baseRecords.current.filter((item) => !isDeletedRecord(item));
+                setServerRecords((current) => current.filter((item) => !isDeletedRecord(item)));
+                baseSummary.current = { ...baseSummary.current, total: Math.max(0, baseSummary.current.total - 1) };
+                setServerSummary((current) => ({ ...current, total: Math.max(0, current.total - 1) }));
+
+                try {
+                    const { data } = await axios.get(route('dashboard.records'), {
+                        headers: { Accept: 'application/json' },
+                    });
+                    baseRecords.current = data.records;
+                    baseNextCursor.current = data.next_cursor;
+                    baseSummary.current = data.summary;
+                    setServerSummary(data.summary);
+                    if (currentSearch.current.trim()) {
+                        setSearchRetry((count) => count + 1);
+                    } else {
+                        setServerRecords(data.records);
+                        setNextCursor(data.next_cursor);
+                    }
+                    const saveRecords = data.summary.total <= data.records.length
+                        ? reconcileCompleteServerRecords(ownerId, data.records)
+                        : cacheServerRecords(ownerId, data.records);
+                    await saveRecords;
+                } catch (error) {
+                    setPageError('Data sudah dihapus, tetapi ringkasan terbaru belum dapat dimuat. Muat ulang saat koneksi stabil.');
+                }
+            }
+
+            await refresh();
+            Swal.close();
+            await Swal.fire({
+                icon: 'success',
+                title: 'Data dihapus',
+                text: deletedServerId === null ? 'Entri yang belum terkirim telah dihapus dari perangkat.' : 'Bidang dan fotonya telah dihapus dari server.',
+                confirmButtonText: 'Mengerti',
+                confirmButtonColor: '#143E2C',
+            });
+        } catch (error) {
+            Swal.close();
+            const message = deletedOnServer
+                ? 'Data di server sudah dihapus, tetapi salinan di perangkat belum dapat dibersihkan. Muat ulang saat koneksi aktif.'
+                : error?.response?.status === 401 || error?.response?.status === 419
+                    ? 'Sesi berakhir. Masuk kembali sebelum menghapus data.'
+                    : error?.message?.startsWith('Koneksi internet diperlukan')
+                        ? error.message
+                        : 'Data belum dapat dihapus. Periksa koneksi dan penyimpanan perangkat, lalu coba lagi.';
+            await Swal.fire({ icon: 'error', title: 'Penghapusan belum selesai', text: message, confirmButtonText: 'Mengerti', confirmButtonColor: '#143E2C' });
+        } finally {
+            setDeletingUuid(null);
         }
     };
 
@@ -505,6 +672,7 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
                             <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-stone-100 pt-3">
                                 <button type="button" onClick={() => setSelectedUuid(record.client_uuid ?? `server-${record.id}`)} className="min-h-10 rounded-lg bg-forest px-3 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest">Rincian</button>
                                 <button type="button" onClick={() => openEdit(record)} disabled={record.status === 'sending'} className="min-h-10 rounded-lg border border-forest px-3 text-sm font-semibold text-forest disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest">Edit data</button>
+                                <button type="button" onClick={() => deleteRecord(record)} disabled={record.status === 'sending' || deletingUuid !== null} aria-label={`Hapus data ${record.nama}`} className="flex min-h-10 items-center gap-1.5 rounded-lg border border-red-300 px-3 text-sm font-semibold text-red-800 hover:bg-red-50 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"><TrashIcon className="h-4 w-4" aria-hidden="true" /><BusyIndicator active={deletingUuid === (record.client_uuid ?? `server-${record.id}`)} />{deletingUuid === (record.client_uuid ?? `server-${record.id}`) ? 'Menghapus...' : 'Hapus'}</button>
                                 {record.status === 'failed' && record.retryable !== false && online && <button type="button" onClick={() => retry(record.client_uuid)} disabled={isSending || retryingUuid !== null} className="flex min-h-10 items-center gap-2 rounded-lg border border-secondary px-3 text-sm font-semibold text-secondary disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary"><BusyIndicator active={retryingUuid === record.client_uuid} />{retryingUuid === record.client_uuid ? 'Mengirim...' : 'Kirim ulang'}</button>}
                                 {record.status === 'failed' && record.retryable === false && record.operation !== 'update' && <a href={`${route('input-sensus')}?edit=${encodeURIComponent(record.client_uuid)}`} className="flex min-h-10 items-center rounded-lg border border-secondary px-3 text-sm font-semibold text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-secondary">Perbaiki</a>}
                             </div>
@@ -521,7 +689,7 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
 
             <SensusExportModal show={exportOpen} onClose={() => setExportOpen(false)} pendingCount={summary.pending} online={online} />
 
-            <Modal show={editRecord !== null} onClose={() => { if (!editSaving) setEditRecord(null); }} maxWidth="md">
+            <Modal show={editRecord !== null} onClose={() => { if (!editSaving && !Swal.isVisible()) setEditRecord(null); }} panelRef={editModalPanelRef} maxWidth="md">
                 <form onSubmit={saveEdit} className="space-y-4 p-5 sm:p-6">
                     <div>
                         <h2 className="text-lg font-bold text-forest">Edit data bidang</h2>

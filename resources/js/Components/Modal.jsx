@@ -10,6 +10,7 @@ export default function Modal({
     show = false,
     maxWidth = '2xl',
     closeable = true,
+    panelRef = null,
     onClose = () => {},
 }) {
     const close = () => {
@@ -31,7 +32,7 @@ export default function Modal({
             <Dialog
                 as="div"
                 id="modal"
-                className="fixed inset-0 z-50 flex items-center overflow-y-auto px-4 py-6 sm:px-0"
+                className="fixed inset-0 z-50 flex items-center overflow-y-auto px-4 py-6"
                 onClose={close}
             >
                 <TransitionChild
@@ -42,7 +43,7 @@ export default function Modal({
                     leaveFrom="opacity-100"
                     leaveTo="opacity-0"
                 >
-                    <div className="absolute inset-0 bg-gray-500/75" />
+                    <div className="fixed inset-0 bg-gray-500/75" />
                 </TransitionChild>
 
                 <TransitionChild
@@ -54,7 +55,8 @@ export default function Modal({
                     leaveTo="opacity-0"
                 >
                     <DialogPanel
-                        className={`mb-6 overflow-hidden rounded-lg bg-white shadow-xl sm:mx-auto sm:w-full ${maxWidthClass}`}
+                        ref={panelRef}
+                        className={`relative z-10 mx-auto max-h-[calc(100dvh-3rem)] w-full overflow-y-auto rounded-lg bg-white shadow-xl ${maxWidthClass}`}
                     >
                         {children}
                     </DialogPanel>

@@ -22,3 +22,12 @@
         animation: none;
     }
 }
+
+/* Lebarkan NProgress (Loading Bar) */
+#nprogress .bar {
+    height: 5px !important;
+}
+
+#nprogress .peg {
+    box-shadow: 0 0 10px #FACC15, 0 0 5px #FACC15 !important;
+}

@@ -22,19 +22,94 @@ class CDKUserSeeder extends Seeder
 
         $users = [
             [
-                'name' => 'ALIKA FATTA KUMALA',
-                'email' => 'alika.fatta.kumala@cdk.com',
-                'password' => 'cdk_alika',
+                'name' => 'Dwi Altin Fajrunnafi',
+                'email' => 'dwialtinf@gmail.com',
+                'password' => 'password123',
             ],
             [
-                'name' => 'ANTONIUS KRISTIANTO YUHANDONO',
-                'email' => 'antonius.kristianto.yuhandono@cdk.com',
-                'password' => 'cdk_yuhandono',
+                'name' => 'Satria Prasenda MS',
+                'email' => 'satmahe1205@gmail.com',
+                'password' => 'password123',
             ],
             [
-                'name' => 'SIDIK WICAKSONO',
-                'email' => 'sidik.wicaksono@cdk.com',
-                'password' => 'cdk_sidik',
+                'name' => 'Antonius Kristianto Yuhandono, S.Hut',
+                'email' => 'kristiantoyuhandono85@gmail.com',
+                'password' => 'password123',
+            ],
+            [
+                'name' => 'Supriyanto, S.Hut, M.Agr',
+                'email' => 'yanto_s28@ymail.com',
+                'password' => 'password123',
+            ],
+            [
+                'name' => 'Totok Ary Sujadmiko, S.Hut',
+                'email' => 'totokary81@gmail.com',
+                'password' => 'password123',
+            ],
+            [
+                'name' => 'Sidik Wicaksono, S.Hut',
+                'email' => 'alazzamsidik@gmail.com',
+                'password' => 'password123',
+            ],
+            [
+                'name' => 'Hamdani Panduwinata, S.Hut.,M.Si',
+                'email' => 'dani_pandu@yahoo.co.id',
+                'password' => 'password123',
+            ],
+            [
+                'name' => 'Agus Munir',
+                'email' => 'munirforest2000@gmail.com',
+                'password' => 'password123',
+            ],
+            [
+                'name' => 'Ramadhany Fatahillah Siswanto',
+                'email' => 'edhaany2@gmail.com',
+                'password' => 'password123',
+            ],
+            [
+                'name' => 'Ali Widodo. S.Hut',
+                'email' => 'widodo.ali@gmail.com',
+                'password' => 'password123',
+            ],
+            [
+                'name' => 'Fajar Mahardika',
+                'email' => 'fajarmahardiika@gmail.com',
+                'password' => 'password123',
+            ],
+            [
+                'name' => 'Taufiq Sudaryo, SP',
+                'email' => 'taufiqsud@gmail.com',
+                'password' => 'password123',
+            ],
+            [
+                'name' => 'Roni Rohendi',
+                'email' => 'ronirohendi516@gmail.com',
+                'password' => 'password123',
+            ],
+            [
+                'name' => 'Ruli Endriadi',
+                'email' => 'rulienthunk@gmail.com',
+                'password' => 'password123',
+            ],
+            [
+                'name' => 'Agus Priyono, SP',
+                'email' => 'priyonoguus@gmail.com',
+                'password' => 'password123',
+            ],
+            [
+                'name' => 'Alika Fatta Kumala, S.Hut',
+                'email' => 'alikafath@gmail.com',
+                'password' => 'password123',
+            ],
+            [
+                'name' => 'Pancadani Okto Yusbiyanto, SP, MMA',
+                'email' => 'dewapancadhani@gmail.com',
+                'password' => 'password123',
+            ],
+            [
+                'name' => 'Ihwan Yusuf Habibi, S.Hut',
+                'email' => 'ihwan.y.habibi@gmail.com',
+                'password' => 'password123',
             ],
         ];
 

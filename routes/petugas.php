@@ -17,4 +17,5 @@ Route::post('/sensus', [SensusController::class, 'store'])->name('sensus.store')
 Route::get('/sensus/export/choices', SensusExportChoicesController::class)->name('sensus.export.choices');
 Route::post('/sensus/export', SensusExportController::class)->name('sensus.export');
 Route::patch('/sensus/{record}', [SensusController::class, 'update'])->name('sensus.update');
+Route::delete('/sensus/{record}', [SensusController::class, 'destroy'])->name('sensus.destroy');
 Route::get('/sensus/{record}/foto', [SensusController::class, 'photo'])->name('sensus.photo');

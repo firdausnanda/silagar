@@ -19,6 +19,7 @@ class PenggarapLahan extends Model
         'luas_garapan',
         'lama_menggarap',
         'foto_path',
+        'foto_storage',
         'latitude',
         'longitude',
         'utm_x',

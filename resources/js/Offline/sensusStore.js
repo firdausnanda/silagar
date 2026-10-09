@@ -86,6 +86,54 @@ export async function saveEntry(ownerId, entry) {
     });
 }
 
+export async function removeSensusRecord(ownerId, clientUuid, serverId = null) {
+    const database = await openDatabase();
+    const numericOwnerId = Number(ownerId);
+    const numericServerId = serverId === null ? null : Number(serverId);
+
+    await new Promise((resolve, reject) => {
+        const transaction = database.transaction(['entries', 'server_records'], 'readwrite');
+        const entryCursor = transaction.objectStore('entries')
+            .index('owner_id')
+            .openCursor(IDBKeyRange.only(numericOwnerId));
+
+        entryCursor.onsuccess = () => {
+            const cursor = entryCursor.result;
+            if (!cursor) {
+                return;
+            }
+
+            const entry = cursor.value;
+            const entryServerId = entry.server_id ?? entry.id ?? entry.server_record?.id;
+            if (entry.client_uuid === clientUuid
+                || (numericServerId !== null && Number(entryServerId) === numericServerId)) {
+                cursor.delete();
+            }
+            cursor.continue();
+        };
+
+        const cacheStore = transaction.objectStore('server_records');
+        const cachedRecords = cacheStore.get(numericOwnerId);
+        cachedRecords.onsuccess = () => {
+            if (!cachedRecords.result) {
+                return;
+            }
+
+            cacheStore.put({
+                ...cachedRecords.result,
+                records: cachedRecords.result.records.filter((record) => record.client_uuid !== clientUuid
+                    && (numericServerId === null || Number(record.id) !== numericServerId)),
+            });
+        };
+
+        transaction.oncomplete = resolve;
+        transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error);
+    });
+
+    notifyChange();
+}
+
 export async function listEntries(ownerId) {
     const database = await openDatabase();
     return new Promise((resolve, reject) => {

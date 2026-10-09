@@ -9,6 +9,22 @@ import {
 import { sendSensusEntry } from './sensusTransport';
 
 const activeSyncs = new Map();
+const pausedSyncOwners = new Set();
+
+export async function withSensusSyncPaused(ownerId, operation) {
+    const key = Number(ownerId);
+    pausedSyncOwners.add(key);
+
+    try {
+        if (activeSyncs.has(key)) {
+            await activeSyncs.get(key);
+        }
+
+        return await operation();
+    } finally {
+        pausedSyncOwners.delete(key);
+    }
+}
 
 async function uploadEntry(entry) {
     try {
@@ -31,11 +47,11 @@ async function uploadEntry(entry) {
 }
 
 export function syncForOwner(ownerId, options = {}) {
-    if (!navigator.onLine) {
+    const key = Number(ownerId);
+    if (!navigator.onLine || pausedSyncOwners.has(key)) {
         return Promise.resolve();
     }
 
-    const key = Number(ownerId);
     if (activeSyncs.has(key)) {
         return activeSyncs.get(key);
     }

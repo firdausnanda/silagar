@@ -1,5 +1,7 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Swal from 'sweetalert2';
+import 'sweetalert2/dist/sweetalert2.min.css';
 import BusyIndicator from '../Components/BusyIndicator';
 import SensusPhoto from '../Components/SensusPhoto';
 import { captureCameraFrame } from '../Components/cameraFrame';
@@ -290,11 +292,30 @@ export default function InputSensus() {
         }
         const identity = getValidatedIdentityData();
         if (!identity) {
-            setFormError('Periksa nama, luas dalam hektar, lama garap, dan nomor kontak.');
+            const message = 'Periksa nama, luas dalam hektar, lama garap, dan nomor kontak.';
+            setFormError(message);
+            await Swal.fire({ icon: 'error', title: 'Data belum valid', text: message, confirmButtonText: 'Periksa lagi', confirmButtonColor: '#143E2C' });
             return;
         }
         if (!draft.foto || draft.latitude === null || draft.longitude === null) {
-            setFormError('Foto dan titik GPS belum lengkap. Ambil foto dan koordinat sebelum menyimpan.');
+            const message = 'Foto dan titik GPS belum lengkap. Ambil foto dan koordinat sebelum menyimpan.';
+            setFormError(message);
+            await Swal.fire({ icon: 'error', title: 'Data belum lengkap', text: message, confirmButtonText: 'Periksa lagi', confirmButtonColor: '#143E2C' });
+            return;
+        }
+
+        const { isConfirmed } = await Swal.fire({
+            icon: 'question',
+            title: 'Simpan data bidang?',
+            text: 'Data akan disimpan di perangkat, lalu dikirim saat koneksi tersedia.',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, simpan',
+            cancelButtonText: 'Batal',
+            confirmButtonColor: '#143E2C',
+            cancelButtonColor: '#6B7280',
+            reverseButtons: true,
+        });
+        if (!isConfirmed) {
             return;
         }
 
@@ -318,6 +339,15 @@ export default function InputSensus() {
                 setStorageError('Entri tersimpan, tetapi draf lama belum dibersihkan.');
             }
             syncForOwner(ownerId).catch(() => {});
+            await Swal.fire({
+                icon: 'success',
+                title: 'Sensus tersimpan',
+                text: 'Data tersimpan di perangkat. Status pengiriman terlihat di daftar bidang.',
+                confirmButtonText: 'Lihat daftar bidang',
+                confirmButtonColor: '#143E2C',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+            });
             if (navigator.onLine) {
                 router.visit(route('dashboard'), {
                     onFinish: () => {
@@ -333,10 +363,19 @@ export default function InputSensus() {
         } catch (error) {
             if (entrySaved) {
                 setNavigationFailed(true);
+                await Swal.fire({
+                    icon: 'warning',
+                    title: 'Data tersimpan, halaman belum terbuka',
+                    text: 'Buka dashboard untuk melihat status pengiriman data.',
+                    confirmButtonText: 'Mengerti',
+                    confirmButtonColor: '#143E2C',
+                });
             } else {
-                setStorageError(error instanceof Error && error.message.startsWith('Browser tidak dapat membuat ID sensus')
+                const message = error instanceof Error && error.message.startsWith('Browser tidak dapat membuat ID sensus')
                     ? error.message
-                    : 'Sensus belum tersimpan. Periksa ruang penyimpanan perangkat dan coba lagi.');
+                    : 'Sensus belum tersimpan. Periksa ruang penyimpanan perangkat dan coba lagi.';
+                setStorageError(message);
+                await Swal.fire({ icon: 'error', title: 'Gagal menyimpan', text: message, confirmButtonText: 'Coba lagi', confirmButtonColor: '#143E2C' });
             }
             setProcessing(false);
         }

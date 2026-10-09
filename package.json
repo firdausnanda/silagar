@@ -26,6 +26,7 @@
     },
     "dependencies": {
         "@heroicons/react": "^2.2.0",
-        "react-select": "5.10.2"
+        "react-select": "5.10.2",
+        "sweetalert2": "^11.26.25"
     }
 }

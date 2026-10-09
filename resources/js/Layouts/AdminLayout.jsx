@@ -2,8 +2,9 @@ import {
     ArrowRightOnRectangleIcon,
     Bars3Icon,
     ChartBarSquareIcon,
+    ChartPieIcon,
+    CloudArrowUpIcon,
     DocumentMagnifyingGlassIcon,
-    MapIcon,
     UserCircleIcon,
     UsersIcon,
     XMarkIcon,
@@ -12,8 +13,9 @@ import { Link, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 
 const navigation = [
-    { name: 'admin.dashboard', label: 'Monitoring sensus', icon: ChartBarSquareIcon },
+    { name: 'admin.dashboard', label: 'Dashboard Monitoring', icon: ChartBarSquareIcon },
     { name: 'admin.users.index', label: 'Manajemen akun', icon: UsersIcon },
+    { name: 'admin.backups.index', label: 'Backup database', icon: CloudArrowUpIcon },
 ];
 
 export default function AdminLayout({ title, children }) {
@@ -75,12 +77,10 @@ export default function AdminLayout({ title, children }) {
             <aside id="admin-navigation" className={`${menuOpen ? 'visible translate-x-0' : 'invisible -translate-x-full'} fixed inset-y-0 left-0 z-40 flex w-[min(18rem,calc(100vw-3rem))] flex-col bg-forest text-white shadow-xl transition-transform duration-200 motion-reduce:transition-none xl:sticky xl:top-0 xl:visible xl:h-screen xl:w-auto xl:translate-x-0 xl:shadow-none`}>
                 <div className="flex items-center justify-between gap-4 px-5 py-4 xl:px-5 xl:pb-8 xl:pt-7">
                     <div className="flex min-w-0 items-center gap-3">
-                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-terracotta-dark text-white shadow-sm" aria-hidden="true">
-                            <MapIcon className="h-6 w-6" />
-                        </span>
+                        <img src="/logo.png" alt="" className="h-12 w-12 shrink-0 rounded-xl object-contain" />
                         <div className="min-w-0 leading-tight">
                             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-100">SIPINTAR HUT</p>
-                            <p className="mt-1 text-base font-semibold text-white">Ruang admin</p>
+                            <p className="mt-1 text-base font-semibold text-white">Halaman Admin</p>
                         </div>
                     </div>
                     <button
@@ -112,6 +112,12 @@ export default function AdminLayout({ title, children }) {
                                 <a href={route('log-viewer.index')} onClick={() => setMenuOpen(false)} className={navigationClass(false)}>
                                     <DocumentMagnifyingGlassIcon className="h-5 w-5 shrink-0" aria-hidden="true" />
                                     <span className="min-w-0 flex-1">Log aplikasi</span>
+                                </a>
+                            )}
+                            {route().has('pulse') && (
+                                <a href={route('pulse')} onClick={() => setMenuOpen(false)} aria-current={route().current('pulse') ? 'page' : undefined} className={navigationClass(route().current('pulse'))}>
+                                    <ChartPieIcon className="h-5 w-5 shrink-0" aria-hidden="true" />
+                                    <span className="min-w-0 flex-1">Pulse</span>
                                 </a>
                             )}
                         </div>
