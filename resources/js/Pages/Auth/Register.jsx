@@ -110,8 +110,8 @@ export default function Register() {
                         Already registered?
                     </Link>
 
-                    <PrimaryButton className="ms-4" disabled={processing}>
-                        Register
+                    <PrimaryButton className="ms-4" disabled={processing} busy={processing}>
+                        {processing ? 'Registering...' : 'Register'}
                     </PrimaryButton>
                 </div>
             </form>

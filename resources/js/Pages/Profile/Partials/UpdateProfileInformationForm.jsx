@@ -1,5 +1,6 @@
 import InputError from '@/Components/InputError';
 import { Link, useForm, usePage } from '@inertiajs/react';
+import BusyIndicator from '../../../Components/BusyIndicator';
 
 export default function UpdateProfileInformation({ mustVerifyEmail, status }) {
     const user = usePage().props.auth.user;
@@ -42,7 +43,8 @@ export default function UpdateProfileInformation({ mustVerifyEmail, status }) {
                 )}
 
                 <div className="flex flex-wrap items-center gap-3 pt-1">
-                    <button type="submit" disabled={processing} className="min-h-12 rounded-lg bg-forest px-5 font-semibold text-white disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">
+                    <button type="submit" disabled={processing} aria-busy={processing} className="flex min-h-12 items-center gap-2 rounded-lg bg-forest px-5 font-semibold text-white transition-colors duration-150 disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">
+                        <BusyIndicator active={processing} />
                         {processing ? 'Menyimpan...' : 'Simpan profil'}
                     </button>
                     {recentlySuccessful && <p role="status" className="text-sm font-medium text-forest">Profil tersimpan.</p>}

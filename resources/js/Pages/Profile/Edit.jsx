@@ -11,7 +11,7 @@ export default function Edit({ mustVerifyEmail, status }) {
             <header className="bg-primary-container px-4 py-5 text-white">
                 <div className="mx-auto flex max-w-3xl items-center justify-between gap-4">
                     <div>
-                        <p className="text-sm text-emerald-100">SILAGAR</p>
+                        <p className="text-sm text-emerald-100">SIPINTAR HUT</p>
                         <h1 className="text-xl font-bold">Profil petugas</h1>
                     </div>
                     <Link href={route('dashboard')} className="flex min-h-11 shrink-0 items-center rounded-lg border border-emerald-200 px-3 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">

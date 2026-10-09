@@ -1,6 +1,6 @@
 const PAGE_CACHE = 'sensus-pages-v1';
 const ASSET_CACHE = 'sensus-assets-v1';
-const OFFLINE_CACHE = 'sensus-offline-v2';
+const OFFLINE_CACHE = 'sensus-offline-v3';
 const OFFLINE_PAGES = new Set(['/dashboard', '/input-sensus']);
 
 self.addEventListener('install', (event) => {

@@ -4,7 +4,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
-        <title inertia>SILAGAR</title>
+        <title inertia>{{ config('app.name') }}</title>
 
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
@@ -19,7 +19,7 @@
         <link rel="shortcut icon" href="/favicon.ico">
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
         <meta name="theme-color" content="#143e2c">
-        <meta name="apple-mobile-web-app-title" content="SILAGAR">
+        <meta name="apple-mobile-web-app-title" content="{{ config('app.name') }}">
         <meta name="apple-mobile-web-app-capable" content="yes">
 
         <!-- Scripts -->

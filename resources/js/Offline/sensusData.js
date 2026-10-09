@@ -12,6 +12,10 @@ export function countEnteredRecords(serverTotal, localEntries, knownServerRecord
     return Number(serverTotal) + newEntries.size;
 }
 
+export function hasActiveSensusSync(syncing, localEntries) {
+    return syncing || localEntries.some((entry) => entry.status === 'sending');
+}
+
 export function selectDashboardEntries(localEntries, visibleRecords, newestInitialId) {
     const visibleUuids = new Set(visibleRecords.map((record) => record.client_uuid));
 

@@ -1,8 +1,8 @@
 {
-    "name": "SILAGAR - Sistem Informasi Lahan Garapan",
-    "short_name": "SILAGAR",
+    "name": "SIPINTAR HUT - Sistem Informasi Pendataan dan Inventarisasi Hutan Sosial",
+    "short_name": "SIPINTAR HUT",
     "id": "/",
-    "description": "Sistem Informasi Lahan Garapan untuk pendataan bidang dan penggarap.",
+    "description": "Sistem Informasi Pendataan dan Inventarisasi Hutan Sosial.",
     "lang": "id",
     "start_url": "/dashboard",
     "scope": "/",

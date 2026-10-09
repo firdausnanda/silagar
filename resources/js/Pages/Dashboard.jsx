@@ -1,11 +1,13 @@
 import axios from 'axios';
 import { Head, Link, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import BusyIndicator from '../Components/BusyIndicator';
 import Modal from '../Components/Modal';
 import SensusExportModal from '../Components/SensusExportModal';
 import SensusPhoto from '../Components/SensusPhoto';
-import { countEnteredRecords, mergeSensusRecords, selectDashboardEntries } from '../Offline/sensusData';
-import { cacheServerRecords, saveEntry } from '../Offline/sensusStore';
+import { countEnteredRecords, hasActiveSensusSync, mergeSensusRecords, selectDashboardEntries } from '../Offline/sensusData';
+import { consumeSavedSensusNotice } from '../Offline/sensusFeedback';
+import { cacheServerRecords, listEntries, saveEntry } from '../Offline/sensusStore';
 import { syncForOwner, useSensusRecords } from '../Offline/sensusSync';
 
 const numberFormat = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 });
@@ -50,11 +52,25 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
     const [searchLoading, setSearchLoading] = useState(false);
     const [searchRetry, setSearchRetry] = useState(0);
     const [loadingMore, setLoadingMore] = useState(false);
+    const [retryingUuid, setRetryingUuid] = useState(null);
     const [pageError, setPageError] = useState('');
+    const [saveNotice, setSaveNotice] = useState('');
     const [offlineVisibleCount, setOfflineVisibleCount] = useState(30);
     const dialogRef = useRef(null);
     const requestGeneration = useRef(0);
     const { localEntries, cachedRecords, storageError, syncing, attemptSync, refresh } = useSensusRecords(ownerId, initialRecords);
+
+    useEffect(() => {
+        let active = true;
+
+        listEntries(ownerId).then((entries) => {
+            if (active && consumeSavedSensusNotice(ownerId, entries)) {
+                setSaveNotice((current) => current || 'Sensus tersimpan di perangkat. Status pengiriman terlihat di daftar bidang.');
+            }
+        }).catch(() => {});
+
+        return () => { active = false; };
+    }, [ownerId]);
 
     useEffect(() => {
         setServerRecords(initialRecords);
@@ -166,6 +182,7 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
         total: countEnteredRecords(serverSummary.total, localEntries, offlineRecords),
         pending: loadedSummary.pending,
     };
+    const isSending = hasActiveSensusSync(syncing, localEntries);
 
     const loadMore = async () => {
         if (!online) {
@@ -229,11 +246,18 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
     }, [selected]);
 
     const retry = async (clientUuid) => {
+        if (retryingUuid !== null || isSending) {
+            return;
+        }
+
+        setRetryingUuid(clientUuid);
         try {
             await syncForOwner(ownerId, { onlyUuid: clientUuid, force: true });
             await refresh();
         } catch (error) {
             await refresh();
+        } finally {
+            setRetryingUuid(null);
         }
     };
 
@@ -277,6 +301,7 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
                 lama_menggarap: String(lama),
             });
             setEditRecord(null);
+            setSaveNotice('Perubahan tersimpan di perangkat. Status pengiriman terlihat di daftar bidang.');
             syncForOwner(ownerId).catch(() => {});
         } catch (error) {
             setEditError('Perubahan belum tersimpan di perangkat. Periksa ruang penyimpanan dan coba lagi.');
@@ -291,7 +316,7 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
             <header className="bg-primary-container px-4 py-5 text-white">
                 <div className="mx-auto flex max-w-3xl items-center justify-between gap-4">
                     <div>
-                        <p className="text-sm text-emerald-100">SILAGAR · Sensus Lahan</p>
+                        <p className="text-sm text-emerald-100">SIPINTAR HUT · Sensus Lahan</p>
                         <h1 className="text-xl font-bold">Data bidang saya</h1>
                         <p className="mt-1 text-sm text-emerald-100">Petugas: {userName}</p>
                     </div>
@@ -300,6 +325,12 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
             </header>
 
             <main className="mx-auto max-w-3xl space-y-5 px-4 py-5 pb-12">
+                {saveNotice && (
+                    <div role="status" className="flex items-start justify-between gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-sm font-medium text-forest">
+                        <p>{saveNotice}</p>
+                        <button type="button" onClick={() => setSaveNotice('')} aria-label="Tutup pemberitahuan simpan" className="min-h-8 min-w-8 rounded-lg text-xl leading-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest">×</button>
+                    </div>
+                )}
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                     <span className={`rounded-lg px-3 py-1.5 font-semibold ${online ? 'bg-emerald-100 text-emerald-900' : 'bg-amber-100 text-amber-950'}`}>
                         {online ? 'Koneksi perangkat aktif' : 'Luring'}
@@ -321,14 +352,15 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
                     <div className="flex items-start justify-between gap-4">
                         <div>
                             <h2 className="font-bold text-forest">{summary.pending} entri menunggu sinkronisasi</h2>
-                            <p className="mt-1 text-sm text-stone-700">
-                                {syncing ? 'Mengirim data ke server...' : online
-                                    ? 'Pengiriman berjalan otomatis selama aplikasi aktif.'
+                            <p role="status" className="mt-1 flex items-center gap-2 text-sm text-stone-700">
+                                <BusyIndicator active={isSending} />
+                                {isSending ? 'Mengirim data ke server...' : online
+                                    ? summary.pending === 0 ? 'Tidak ada entri yang menunggu pengiriman.' : 'Pengiriman berjalan otomatis selama aplikasi aktif.'
                                     : 'Data tetap berada di perangkat sampai koneksi kembali.'}
                             </p>
                         </div>
                         {summary.pending > 0 && online && (
-                            <button type="button" onClick={() => attemptSync(true)} disabled={syncing} className="min-h-11 shrink-0 rounded-lg bg-secondary px-3 text-sm font-bold text-white disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary">Coba kirim</button>
+                            <button type="button" onClick={() => attemptSync(true)} disabled={isSending} className="min-h-11 shrink-0 rounded-lg bg-secondary px-3 text-sm font-bold text-white disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary">{isSending ? 'Mengirim...' : 'Coba kirim'}</button>
                         )}
                     </div>
                 </section>
@@ -367,7 +399,7 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
                     </div>
                     <label htmlFor="cari" className="sr-only">Cari nama, nomor HP, atau koordinat</label>
                     <input id="cari" type="search" maxLength="100" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari nama, nomor HP, atau koordinat" className="min-h-12 w-full rounded-lg border-stone-300 bg-white text-base focus:border-forest focus:ring-forest" />
-                    {searchLoading && <p role="status" className="text-sm text-stone-700">Mencari di server...</p>}
+                    {searchLoading && <p role="status" className="flex items-center gap-2 text-sm text-stone-700"><BusyIndicator active={searchLoading} />Mencari di server...</p>}
                     {!online && search.trim() && <p className="text-sm text-stone-700">Pencarian luring hanya mencakup bidang yang tersimpan di perangkat ini.</p>}
                     {pageError && (
                         <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">
@@ -407,13 +439,14 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
                             <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-stone-100 pt-3">
                                 <button type="button" onClick={() => setSelectedUuid(record.client_uuid ?? `server-${record.id}`)} className="min-h-10 rounded-lg bg-forest px-3 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest">Rincian</button>
                                 <button type="button" onClick={() => openEdit(record)} disabled={record.status === 'sending'} className="min-h-10 rounded-lg border border-forest px-3 text-sm font-semibold text-forest disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest">Edit data</button>
-                                {record.status === 'failed' && record.retryable !== false && online && <button type="button" onClick={() => retry(record.client_uuid)} className="min-h-10 rounded-lg border border-secondary px-3 text-sm font-semibold text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-secondary">Kirim ulang</button>}
+                                {record.status === 'failed' && record.retryable !== false && online && <button type="button" onClick={() => retry(record.client_uuid)} disabled={isSending || retryingUuid !== null} className="flex min-h-10 items-center gap-2 rounded-lg border border-secondary px-3 text-sm font-semibold text-secondary disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary"><BusyIndicator active={retryingUuid === record.client_uuid} />{retryingUuid === record.client_uuid ? 'Mengirim...' : 'Kirim ulang'}</button>}
                                 {record.status === 'failed' && record.retryable === false && record.operation !== 'update' && <a href={`${route('input-sensus')}?edit=${encodeURIComponent(record.client_uuid)}`} className="flex min-h-10 items-center rounded-lg border border-secondary px-3 text-sm font-semibold text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-secondary">Perbaiki</a>}
                             </div>
                         </article>
                     ))}
                     {hasMoreRecords && (
-                        <button type="button" onClick={loadMore} disabled={loadingMore || searchLoading || (online && activeSearch !== search.trim())} className="min-h-12 w-full rounded-lg border border-forest bg-white px-4 font-bold text-forest disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">
+                        <button type="button" onClick={loadMore} disabled={loadingMore || searchLoading || (online && activeSearch !== search.trim())} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border border-forest bg-white px-4 font-bold text-forest disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">
+                            <BusyIndicator active={loadingMore} />
                             {loadingMore ? 'Memuat...' : 'Muat lagi'}
                         </button>
                     )}
@@ -449,7 +482,7 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
                     </div>
                     <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
                         <button type="button" onClick={() => setEditRecord(null)} disabled={editSaving} className="min-h-12 rounded-lg border border-forest px-4 font-semibold text-forest disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">Batal</button>
-                        <button type="submit" disabled={editSaving} className="min-h-12 rounded-lg bg-forest px-4 font-semibold text-white disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">{editSaving ? 'Menyimpan...' : 'Simpan perubahan'}</button>
+                        <button type="submit" disabled={editSaving} className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-forest px-4 font-semibold text-white disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest"><BusyIndicator active={editSaving} />{editSaving ? 'Menyimpan...' : 'Simpan perubahan'}</button>
                     </div>
                 </form>
             </Modal>

@@ -50,8 +50,8 @@ function dispatchFetch(listener, path, mode = 'navigate') {
 test('manifest provides installable identity and real PNG icons', () => {
     const manifest = JSON.parse(readFileSync(`${publicPath}manifest.webmanifest`, 'utf8'));
 
-    assert.equal(manifest.name, 'SILAGAR - Sistem Informasi Lahan Garapan');
-    assert.equal(manifest.short_name, 'SILAGAR');
+    assert.equal(manifest.name, 'SIPINTAR HUT - Sistem Informasi Pendataan dan Inventarisasi Hutan Sosial');
+    assert.equal(manifest.short_name, 'SIPINTAR HUT');
     assert.equal(manifest.display, 'standalone');
     assert.equal(manifest.scope, '/');
     assert.ok(manifest.start_url.startsWith('/'));

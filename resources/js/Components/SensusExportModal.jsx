@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { useEffect, useMemo, useState } from 'react';
+import BusyIndicator from './BusyIndicator';
 import Modal from './Modal';
 import { filterExportRecords } from './sensusExportData';
 
@@ -138,7 +139,7 @@ export default function SensusExportModal({ show, onClose, ownerId, pendingCount
                 withXSRFToken: true,
             });
             const filename = response.headers['content-disposition']?.match(/filename="?([^";]+)"?/i)?.[1]
-                ?? 'sensus-lahan.xlsx';
+                ?? 'sipintar-hut.xlsx';
             const url = URL.createObjectURL(response.data);
             const link = document.createElement('a');
             link.href = url;
@@ -221,7 +222,7 @@ export default function SensusExportModal({ show, onClose, ownerId, pendingCount
                     </div>
                     <div className="max-h-56 space-y-1 overflow-y-auto rounded-lg border border-stone-300 p-2" aria-label="Daftar bidang untuk ekspor">
                         {loading ? (
-                            <p role="status" className="p-3 text-sm text-stone-700">Memuat bidang dari server...</p>
+                            <p role="status" className="flex items-center gap-2 p-3 text-sm text-stone-700"><BusyIndicator active={loading} />Memuat bidang dari server...</p>
                         ) : visibleRecords.length === 0 ? (
                             <p className="p-3 text-sm text-stone-700">{catalog ? 'Tidak ada bidang tersinkron yang cocok.' : 'Daftar bidang belum tersedia.'}</p>
                         ) : visibleRecords.map((record) => (
@@ -247,7 +248,8 @@ export default function SensusExportModal({ show, onClose, ownerId, pendingCount
 
                 <div className="flex flex-col-reverse gap-2 border-t border-stone-200 pt-4 sm:flex-row sm:justify-end">
                     <button type="button" onClick={onClose} disabled={downloading} className="min-h-12 rounded-lg border border-forest px-4 font-semibold text-forest disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">Tutup</button>
-                    <button type="button" onClick={download} disabled={!online || loading || !catalog || downloading || invalidDateRange || overRecordLimit || chosenIds.length === 0 || columns.length === 0} className="min-h-12 rounded-lg bg-forest px-4 font-bold text-white disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">
+                    <button type="button" onClick={download} disabled={!online || loading || !catalog || downloading || invalidDateRange || overRecordLimit || chosenIds.length === 0 || columns.length === 0} aria-busy={downloading} className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-forest px-4 font-bold text-white disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">
+                        <BusyIndicator active={downloading} />
                         {downloading ? 'Menyiapkan Excel...' : `Unduh ${chosenIds.length} bidang`}
                     </button>
                 </div>

@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { countEnteredRecords, mergeSensusRecords, selectDashboardEntries, syncQueuedEntries } from '../../resources/js/Offline/sensusData.js';
+import { countEnteredRecords, hasActiveSensusSync, mergeSensusRecords, selectDashboardEntries, syncQueuedEntries } from '../../resources/js/Offline/sensusData.js';
+
+test('dashboard detects an upload already sending before its sync listener mounts', () => {
+    assert.equal(hasActiveSensusSync(false, [{ status: 'sending' }]), true);
+    assert.equal(hasActiveSensusSync(true, [{ status: 'pending' }]), true);
+    assert.equal(hasActiveSensusSync(false, [{ status: 'pending' }, { status: 'synced' }]), false);
+});
 
 test('merging local and server records counts one bidang for the same UUID', () => {
     const serverRecords = [{ client_uuid: 'a', nama: 'Siti', luas_garapan: 0.75, captured_at: '2026-10-08T02:00:00Z' }];

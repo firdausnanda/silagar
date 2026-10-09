@@ -55,7 +55,7 @@ class SensusExportController extends Controller
         }
 
         $columns = array_values($data['columns']);
-        $filename = 'sensus-lahan-'.now('Asia/Jakarta')->format('Ymd-His').'.xlsx';
+        $filename = 'sipintar-hut-'.now('Asia/Jakarta')->format('Ymd-His').'.xlsx';
 
         return response()->streamDownload(function () use ($records, $columns): void {
             $workbook = new Spreadsheet;

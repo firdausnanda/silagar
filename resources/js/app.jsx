@@ -6,7 +6,7 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 import { clearOfflineAccess, registerOfflineAccess, registerPwa } from './Offline/registerOffline';
 
-const appName = import.meta.env.VITE_APP_NAME || 'SILAGAR';
+const appName = import.meta.env.VITE_APP_NAME || 'SIPINTAR HUT';
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,

@@ -45,8 +45,8 @@ export default function ConfirmPassword() {
                 </div>
 
                 <div className="mt-4 flex items-center justify-end">
-                    <PrimaryButton className="ms-4" disabled={processing}>
-                        Confirm
+                    <PrimaryButton className="ms-4" disabled={processing} busy={processing}>
+                        {processing ? 'Confirming...' : 'Confirm'}
                     </PrimaryButton>
                 </div>
             </form>

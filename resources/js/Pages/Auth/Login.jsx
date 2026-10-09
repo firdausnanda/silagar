@@ -1,5 +1,6 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import { useState } from 'react';
+import BusyIndicator from '../../Components/BusyIndicator';
 
 export default function Login({ status, canResetPassword }) {
     const { data, setData, post, processing, errors, reset } = useForm({
@@ -23,10 +24,10 @@ export default function Login({ status, canResetPassword }) {
 
             <header className="bg-primary-container px-4 pb-28 pt-8 text-white sm:pb-32 sm:pt-12">
                 <div className="mx-auto max-w-md">
-                    <p className="text-sm font-semibold tracking-wide text-emerald-100">SILAGAR</p>
+                    <p className="text-sm font-semibold tracking-wide text-emerald-100">SIPINTAR HUT</p>
                     <h1 className="mt-7 text-3xl font-bold leading-tight sm:text-4xl">Masuk ke akun Anda</h1>
                     <p className="mt-2 text-sm leading-6 text-emerald-100 sm:text-base">
-                        Sistem Informasi Lahan Garapan
+                        Sistem Informasi Pendataan dan Inventarisasi Hutan Sosial
                     </p>
                 </div>
             </header>
@@ -112,8 +113,10 @@ export default function Login({ status, canResetPassword }) {
                         <button
                             type="submit"
                             disabled={processing}
-                            className="min-h-12 w-full rounded-xl bg-forest px-4 font-bold text-white shadow-sm hover:bg-forest-dark disabled:cursor-wait disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest"
+                            aria-busy={processing}
+                            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-forest px-4 font-bold text-white shadow-sm transition-colors duration-150 hover:bg-forest-dark disabled:cursor-wait disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest"
                         >
+                            <BusyIndicator active={processing} />
                             {processing ? 'Memproses...' : 'Masuk'}
                         </button>
                     </form>
