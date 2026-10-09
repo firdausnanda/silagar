@@ -18,7 +18,7 @@ class DatabaseSeeder extends Seeder
         if (in_array(app()->environment(), ['local', 'testing'], true)) {
             $this->call([
                 CDKUserSeeder::class,
-                DemoAdminSeeder::class,
+                // DemoAdminSeeder::class,
             ]);
         }
     }
