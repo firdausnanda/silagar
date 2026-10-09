@@ -32,10 +32,9 @@ const dateFormat = new Intl.DateTimeFormat('id-ID', {
     day: 'numeric', month: 'short', year: 'numeric',
 });
 
-export default function SensusExportModal({ show, onClose, ownerId, pendingCount, online }) {
+export default function SensusExportModal({ show, onClose, pendingCount, online }) {
     const [catalog, setCatalog] = useState(null);
     const [loading, setLoading] = useState(false);
-    const [recorderSelection, setRecorderSelection] = useState('mine');
     const [search, setSearch] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
@@ -76,11 +75,7 @@ export default function SensusExportModal({ show, onClose, ownerId, pendingCount
         return () => { cancelled = true; };
     }, [show, online]);
 
-    const recorderScope = recorderSelection.startsWith('user:') ? 'user' : recorderSelection;
-    const selectedUserId = recorderScope === 'user' ? Number(recorderSelection.slice(5)) : null;
-    const availableRecords = useMemo(() => filterExportRecords(catalog?.records ?? [], {
-        recorderScope, currentUserId: ownerId, selectedUserId,
-    }), [catalog, recorderScope, ownerId, selectedUserId]);
+    const availableRecords = catalog?.records ?? [];
     const visibleRecords = useMemo(() => filterExportRecords(availableRecords, {
         search, startDate, endDate,
     }), [availableRecords, search, startDate, endDate]);
@@ -131,8 +126,7 @@ export default function SensusExportModal({ show, onClose, ownerId, pendingCount
             const response = await axios.post(route('sensus.export'), {
                 ids: chosenIds,
                 columns,
-                scope: recorderScope,
-                ...(recorderScope === 'user' ? { user_id: selectedUserId } : {}),
+                scope: 'mine',
             }, {
                 responseType: 'blob',
                 headers: { Accept: 'application/json' },
@@ -189,17 +183,7 @@ export default function SensusExportModal({ show, onClose, ownerId, pendingCount
 
                 <fieldset className="space-y-3">
                     <legend className="font-bold text-forest">Pilih bidang</legend>
-                    <div>
-                        <label htmlFor="export-recorder" className="mb-1 block text-sm font-semibold">Data dicatat oleh</label>
-                        <select id="export-recorder" value={recorderSelection} onChange={(event) => setRecorderSelection(event.target.value)} className="min-h-11 w-full rounded-lg border-stone-500 bg-white focus:border-forest focus:ring-forest">
-                            <option value="mine">Saya sendiri</option>
-                            <option value="all">Semua pengguna</option>
-                            {catalog?.users?.filter((user) => Number(user.id) !== Number(ownerId)).map((user) => (
-                                <option key={user.id} value={`user:${user.id}`}>{user.name} (#{user.id})</option>
-                            ))}
-                        </select>
-                        {recorderScope === 'all' && <p className="mt-1 text-sm text-stone-700">Kolom Petugas pencatat dapat ditambahkan agar asal tiap bidang terlihat di Excel.</p>}
-                    </div>
+                    <p className="text-sm text-stone-700">Hanya bidang milik akun Anda yang tersedia untuk ekspor.</p>
                     <label htmlFor="export-search" className="block text-sm font-semibold">Cari nama, nomor HP, atau koordinat</label>
                     <input id="export-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} className="min-h-11 w-full rounded-lg border-stone-500 focus:border-forest focus:ring-forest" />
                     <div className="grid gap-3 sm:grid-cols-2">

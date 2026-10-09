@@ -4,6 +4,8 @@ namespace Database\Seeders;
 
 use App\Models\User;
 use Illuminate\Database\Seeder;
+use RuntimeException;
+use Spatie\Permission\Models\Role;
 
 class CDKUserSeeder extends Seeder
 {
@@ -12,6 +14,12 @@ class CDKUserSeeder extends Seeder
      */
     public function run(): void
     {
+        if (! in_array(app()->environment(), ['local', 'testing'], true)) {
+            throw new RuntimeException('Seeder akun contoh hanya boleh dijalankan di lingkungan lokal atau pengujian.');
+        }
+
+        Role::findOrCreate('user', 'web');
+
         $users = [
             [
                 'name' => 'ALIKA FATTA KUMALA',
@@ -31,7 +39,7 @@ class CDKUserSeeder extends Seeder
         ];
 
         foreach ($users as $user) {
-            User::firstOrCreate(
+            $account = User::firstOrCreate(
                 ['email' => $user['email']],
                 [
                     'name' => $user['name'],
@@ -39,6 +47,9 @@ class CDKUserSeeder extends Seeder
                     'email_verified_at' => now(),
                 ]
             );
+            if (! $account->hasRole('admin')) {
+                $account->assignRole('user');
+            }
         }
     }
 }

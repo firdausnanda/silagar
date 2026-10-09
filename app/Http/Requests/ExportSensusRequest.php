@@ -32,8 +32,8 @@ class ExportSensusRequest extends FormRequest
                 'latitude', 'longitude', 'utm_x', 'utm_y', 'utm_epsg',
                 'gps_accuracy_m', 'captured_at', 'updated_at', 'creator_name',
             ])],
-            'scope' => ['sometimes', 'string', Rule::in(['mine', 'user', 'all'])],
-            'user_id' => ['required_if:scope,user', 'prohibited_unless:scope,user', 'integer', 'exists:users,id'],
+            'scope' => ['sometimes', 'string', Rule::in(['mine'])],
+            'user_id' => ['prohibited'],
         ];
     }
 }

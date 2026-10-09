@@ -16,12 +16,12 @@ export function hasActiveSensusSync(syncing, localEntries) {
     return syncing || localEntries.some((entry) => entry.status === 'sending');
 }
 
-export function selectDashboardEntries(localEntries, visibleRecords, newestInitialId) {
+export function selectDashboardEntries(localEntries, visibleRecords, newestInitialId, online = false) {
     const visibleUuids = new Set(visibleRecords.map((record) => record.client_uuid));
 
     return localEntries.filter((entry) => entry.status !== 'synced'
         || visibleUuids.has(entry.client_uuid)
-        || Number(entry.server_record?.id ?? 0) > newestInitialId);
+        || (!online && Number(entry.server_record?.id ?? 0) > newestInitialId));
 }
 
 export function mergeSensusRecords(serverRecords, localEntries) {

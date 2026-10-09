@@ -134,6 +134,18 @@ test('dashboard retains pending entries without restoring every old synced snaps
     assert.deepEqual(selected.map((entry) => entry.client_uuid), ['loaded', 'new', 'pending']);
 });
 
+test('online dashboard ignores synced snapshots missing from the current server list', () => {
+    const entries = [
+        { client_uuid: 'deleted', status: 'synced', server_record: { id: 31 } },
+        { client_uuid: 'current', status: 'synced', server_record: { id: 30 } },
+        { client_uuid: 'pending', status: 'pending' },
+    ];
+
+    const selected = selectDashboardEntries(entries, [{ client_uuid: 'current' }], 30, true);
+
+    assert.deepEqual(selected.map((entry) => entry.client_uuid), ['current', 'pending']);
+});
+
 test('total entered fields includes unsynced new entries without counting edits twice', () => {
     const entries = [
         { client_uuid: 'baru', status: 'pending' },

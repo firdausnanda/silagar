@@ -7,7 +7,7 @@ import SensusExportModal from '../Components/SensusExportModal';
 import SensusPhoto from '../Components/SensusPhoto';
 import { countEnteredRecords, hasActiveSensusSync, mergeSensusRecords, selectDashboardEntries } from '../Offline/sensusData';
 import { consumeSavedSensusNotice } from '../Offline/sensusFeedback';
-import { cacheServerRecords, listEntries, saveEntry } from '../Offline/sensusStore';
+import { cacheServerRecords, listEntries, reconcileCompleteServerRecords, saveEntry } from '../Offline/sensusStore';
 import { syncForOwner, useSensusRecords } from '../Offline/sensusSync';
 
 const numberFormat = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 });
@@ -32,6 +32,7 @@ function statusLabel(status) {
 export default function Dashboard({ records: initialRecords = [], next_cursor: initialNextCursor = null, summary: initialSummary = { total: 0, luas: 0 } }) {
     const ownerId = usePage().props.auth.user.id;
     const userName = usePage().props.auth.user.name;
+    const isImpersonating = usePage().props.auth.is_impersonating;
     const [filter, setFilter] = useState('semua');
     const [search, setSearch] = useState('');
     const [selectedUuid, setSelectedUuid] = useState(null);
@@ -58,7 +59,12 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
     const [offlineVisibleCount, setOfflineVisibleCount] = useState(30);
     const dialogRef = useRef(null);
     const requestGeneration = useRef(0);
-    const { localEntries, cachedRecords, storageError, syncing, attemptSync, refresh } = useSensusRecords(ownerId, initialRecords);
+    const baseRecords = useRef(initialRecords);
+    const baseNextCursor = useRef(initialNextCursor);
+    const baseSummary = useRef(initialSummary);
+    const currentSearch = useRef(search);
+    currentSearch.current = search;
+    const { localEntries, cachedRecords, storageError, syncing, attemptSync, refresh } = useSensusRecords(ownerId);
 
     useEffect(() => {
         let active = true;
@@ -73,26 +79,85 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
     }, [ownerId]);
 
     useEffect(() => {
+        baseRecords.current = initialRecords;
+        baseNextCursor.current = initialNextCursor;
         setServerRecords(initialRecords);
         setNextCursor(initialNextCursor);
     }, [initialRecords, initialNextCursor]);
 
     useEffect(() => {
+        baseSummary.current = initialSummary;
         setServerSummary(initialSummary);
     }, [initialSummary]);
+
+    useEffect(() => {
+        if (!online) {
+            return;
+        }
+
+        const controller = new AbortController();
+        axios.get(route('dashboard.records'), {
+            signal: controller.signal,
+            headers: { Accept: 'application/json' },
+        }).then(({ data }) => {
+            baseRecords.current = data.records;
+            baseNextCursor.current = data.next_cursor;
+            baseSummary.current = data.summary;
+            if (!currentSearch.current.trim()) {
+                setServerRecords(data.records);
+                setNextCursor(data.next_cursor);
+                setServerSummary(data.summary);
+            }
+            const saveRecords = data.summary.total <= data.records.length
+                ? reconcileCompleteServerRecords(ownerId, data.records)
+                : cacheServerRecords(ownerId, data.records);
+            saveRecords.then(refresh).catch(() => {
+                setOfflineError('Daftar bidang terbaru belum tersimpan untuk akses luring.');
+            }).finally(() => attemptSync(true));
+        }).catch((error) => {
+            if (error.code !== 'ERR_CANCELED') {
+                setPageError('Daftar bidang dari server belum dapat diverifikasi. Coba muat ulang saat koneksi stabil.');
+            }
+        });
+
+        return () => controller.abort();
+    }, [online, ownerId, refresh, attemptSync]);
 
     useEffect(() => {
         const updateSummary = (event) => {
             if (!event.detail?.uploaded || !navigator.onLine) {
                 return;
             }
-            axios.get(route('dashboard.records'), { headers: { Accept: 'application/json' } })
-                .then(({ data }) => setServerSummary(data.summary))
+            const term = currentSearch.current.trim();
+            const generation = requestGeneration.current;
+            axios.get(route('dashboard.records'), {
+                params: term ? { search: term } : {},
+                headers: { Accept: 'application/json' },
+            }).then(({ data }) => {
+                if (currentSearch.current.trim() !== term || requestGeneration.current !== generation) {
+                    return;
+                }
+                setServerRecords(data.records);
+                setNextCursor(data.next_cursor);
+                setServerSummary(data.summary);
+                setActiveSearch(term);
+                if (!term) {
+                    baseRecords.current = data.records;
+                    baseNextCursor.current = data.next_cursor;
+                    baseSummary.current = data.summary;
+                    const saveRecords = data.summary.total <= data.records.length
+                        ? reconcileCompleteServerRecords(ownerId, data.records)
+                        : cacheServerRecords(ownerId, data.records);
+                    saveRecords.then(refresh).catch(() => {
+                        setOfflineError('Bidang terbaru belum tersimpan untuk akses luring.');
+                    });
+                }
+            })
                 .catch(() => {});
         };
         window.addEventListener('sensus-sync-end', updateSummary);
         return () => window.removeEventListener('sensus-sync-end', updateSummary);
-    }, []);
+    }, [ownerId, refresh]);
 
     useEffect(() => {
         const generation = ++requestGeneration.current;
@@ -105,8 +170,9 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
         }
 
         if (!term) {
-            setServerRecords(initialRecords);
-            setNextCursor(initialNextCursor);
+            setServerRecords(baseRecords.current);
+            setNextCursor(baseNextCursor.current);
+            setServerSummary(baseSummary.current);
             setActiveSearch('');
             setSearchLoading(false);
             setPageError('');
@@ -172,8 +238,8 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
         const visibleServerRecords = online
             ? serverRecords
             : search.trim() ? offlineRecords : offlineRecords.slice(0, offlineVisibleCount);
-        const newestInitialId = Math.max(0, ...initialRecords.map((record) => Number(record.id)));
-        const visibleEntries = selectDashboardEntries(localEntries, visibleServerRecords, newestInitialId);
+        const newestInitialId = Math.max(0, ...baseRecords.current.map((record) => Number(record.id)));
+        const visibleEntries = selectDashboardEntries(localEntries, visibleServerRecords, newestInitialId, online);
 
         return mergeSensusRecords(visibleServerRecords, visibleEntries);
     }, [online, serverRecords, offlineRecords, offlineVisibleCount, localEntries, search, initialRecords]);
@@ -320,7 +386,7 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
                         <h1 className="text-xl font-bold">Data bidang saya</h1>
                         <p className="mt-1 text-sm text-emerald-100">Petugas: {userName}</p>
                     </div>
-                    {online && <Link href={route('profile.edit')} className="rounded-lg border border-emerald-200 px-3 py-2 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">Profil</Link>}
+                    {online && !isImpersonating && <Link href={route('profile.edit')} className="rounded-lg border border-emerald-200 px-3 py-2 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">Profil</Link>}
                 </div>
             </header>
 
@@ -453,7 +519,7 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
                 </section>
             </main>
 
-            <SensusExportModal show={exportOpen} onClose={() => setExportOpen(false)} ownerId={ownerId} pendingCount={summary.pending} online={online} />
+            <SensusExportModal show={exportOpen} onClose={() => setExportOpen(false)} pendingCount={summary.pending} online={online} />
 
             <Modal show={editRecord !== null} onClose={() => { if (!editSaving) setEditRecord(null); }} maxWidth="md">
                 <form onSubmit={saveEdit} className="space-y-4 p-5 sm:p-6">

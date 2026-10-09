@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rules\File;
 
 class StoreSensusRequest extends FormRequest
@@ -31,5 +33,21 @@ class StoreSensusRequest extends FormRequest
             'gps_accuracy_m' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
             'captured_at' => ['required', 'date'],
         ];
+    }
+
+    protected function failedValidation(Validator $validator): void
+    {
+        if ($validator->errors()->has('client_uuid')) {
+            Log::warning('Sensus ditolak karena client_uuid tidak valid.', [
+                'user_id' => $this->user()?->getAuthIdentifier(),
+                'reason' => $this->filled('client_uuid') ? 'invalid' : 'missing',
+                'content_length' => $this->server('CONTENT_LENGTH'),
+                'content_type' => $this->header('Content-Type'),
+                'input_count' => count($this->all()),
+                'user_agent' => substr($this->userAgent() ?? '', 0, 255),
+            ]);
+        }
+
+        parent::failedValidation($validator);
     }
 }

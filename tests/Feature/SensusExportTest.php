@@ -92,7 +92,7 @@ class SensusExportTest extends TestCase
         }
     }
 
-    public function test_authenticated_user_can_list_export_choices_from_every_recorder(): void
+    public function test_petugas_lists_only_own_export_choices(): void
     {
         $this->getJson('/sensus/export/choices')->assertUnauthorized();
 
@@ -100,19 +100,19 @@ class SensusExportTest extends TestCase
         $owner = User::factory()->create(['name' => 'Petugas A']);
         $other = User::factory()->create(['name' => 'Petugas B']);
         $ownRecord = $this->createRecord($owner, '11111111-1111-4111-8111-111111111111', 'Milik A', '08111');
-        $otherRecord = $this->createRecord($other, '22222222-2222-4222-8222-222222222222', 'Milik B', '08222');
+        $this->createRecord($other, '22222222-2222-4222-8222-222222222222', 'Milik B', '08222');
 
         $response = $this->actingAs($owner)->getJson('/sensus/export/choices')
             ->assertOk()
-            ->assertJsonCount(2, 'users')
-            ->assertJsonCount(2, 'records')
-            ->assertJsonFragment(['id' => $otherRecord->id, 'nama' => 'Milik B', 'created_by' => $other->id, 'creator_name' => 'Petugas B', 'status' => 'synced']);
+            ->assertJsonCount(0, 'users')
+            ->assertJsonCount(1, 'records')
+            ->assertJsonFragment(['id' => $ownRecord->id, 'nama' => 'Milik A', 'created_by' => $owner->id, 'creator_name' => 'Petugas A', 'status' => 'synced']);
 
         $this->assertContains($ownRecord->id, array_column($response->json('records'), 'id'));
         $this->assertArrayNotHasKey('foto_path', $response->json('records.0'));
     }
 
-    public function test_user_can_export_selected_records_from_all_users_with_recorder_column(): void
+    public function test_petugas_cannot_export_selected_records_from_all_users(): void
     {
         Storage::fake('local');
         $owner = User::factory()->create(['name' => 'Petugas A']);
@@ -120,32 +120,14 @@ class SensusExportTest extends TestCase
         $ownRecord = $this->createRecord($owner, '11111111-1111-4111-8111-111111111111', 'Milik A', '08111');
         $otherRecord = $this->createRecord($other, '22222222-2222-4222-8222-222222222222', 'Milik B', '08222');
 
-        $response = $this->actingAs($owner)->postJson('/sensus/export', [
+        $this->actingAs($owner)->postJson('/sensus/export', [
             'ids' => [$ownRecord->id, $otherRecord->id],
             'columns' => ['nama', 'creator_name'],
             'scope' => 'all',
-        ])->assertOk();
-
-        $path = tempnam(sys_get_temp_dir(), 'sensus-export-');
-        try {
-            file_put_contents($path, $response->streamedContent());
-            $workbook = IOFactory::load($path);
-            $sheet = $workbook->getActiveSheet();
-            $rows = $sheet->rangeToArray('A2:B3');
-
-            $this->assertSame(['Nama penggarap', 'Petugas pencatat'], $sheet->rangeToArray('A1:B1')[0]);
-            $this->assertContains(['Milik A', 'Petugas A'], $rows);
-            $this->assertContains(['Milik B', 'Petugas B'], $rows);
-            $this->assertSame(3, $sheet->getHighestRow());
-        } finally {
-            if (isset($workbook)) {
-                $workbook->disconnectWorksheets();
-            }
-            unlink($path);
-        }
+        ])->assertUnprocessable()->assertJsonValidationErrors(['scope']);
     }
 
-    public function test_user_scope_rejects_records_from_another_recorder(): void
+    public function test_petugas_cannot_choose_another_recorder_or_include_a_foreign_record(): void
     {
         Storage::fake('local');
         $owner = User::factory()->create();
@@ -158,14 +140,12 @@ class SensusExportTest extends TestCase
             'columns' => ['nama'],
             'scope' => 'user',
             'user_id' => $other->id,
-        ])->assertUnprocessable()->assertJsonValidationErrors(['ids']);
+        ])->assertUnprocessable()->assertJsonValidationErrors(['scope', 'user_id']);
 
         $this->postJson('/sensus/export', [
             'ids' => [$otherRecord->id],
             'columns' => ['nama'],
-            'scope' => 'user',
-            'user_id' => $other->id,
-        ])->assertOk();
+        ])->assertUnprocessable()->assertJsonValidationErrors(['ids']);
     }
 
     public function test_export_rejects_invalid_recorder_scope(): void
@@ -181,7 +161,8 @@ class SensusExportTest extends TestCase
         $this->postJson('/sensus/export', [
             'ids' => [1],
             'columns' => ['nama'],
-            'scope' => 'user',
+            'scope' => 'mine',
+            'user_id' => $owner->id,
         ])->assertUnprocessable()->assertJsonValidationErrors(['user_id']);
 
         $this->postJson('/sensus/export', [
@@ -189,7 +170,7 @@ class SensusExportTest extends TestCase
             'columns' => ['nama'],
             'scope' => 'user',
             'user_id' => 999999,
-        ])->assertUnprocessable()->assertJsonValidationErrors(['user_id']);
+        ])->assertUnprocessable()->assertJsonValidationErrors(['scope', 'user_id']);
     }
 
     public function test_associative_column_keys_do_not_break_the_download(): void

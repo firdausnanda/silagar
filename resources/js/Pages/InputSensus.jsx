@@ -5,6 +5,7 @@ import SensusPhoto from '../Components/SensusPhoto';
 import { captureCameraFrame } from '../Components/cameraFrame';
 import { getGpsErrorMessage, requestFreshGpsPosition } from '../Components/gpsLocation';
 import { rememberSavedSensusNotice } from '../Offline/sensusFeedback';
+import { validOrNewClientUuid } from '../Offline/clientUuid';
 import { clearDraft, getDraft, getEntry, saveDraft, saveEntry } from '../Offline/sensusStore';
 import { syncForOwner } from '../Offline/sensusSync';
 
@@ -301,7 +302,7 @@ export default function InputSensus() {
         setFormError('');
         let entrySaved = false;
         try {
-            const clientUuid = draft.client_uuid ?? crypto.randomUUID();
+            const clientUuid = validOrNewClientUuid(draft.client_uuid);
             const ready = persist({
                 client_uuid: clientUuid,
                 ...identity,
@@ -333,7 +334,9 @@ export default function InputSensus() {
             if (entrySaved) {
                 setNavigationFailed(true);
             } else {
-                setStorageError('Sensus belum tersimpan. Periksa ruang penyimpanan perangkat dan coba lagi.');
+                setStorageError(error instanceof Error && error.message.startsWith('Browser tidak dapat membuat ID sensus')
+                    ? error.message
+                    : 'Sensus belum tersimpan. Periksa ruang penyimpanan perangkat dan coba lagi.');
             }
             setProcessing(false);
         }

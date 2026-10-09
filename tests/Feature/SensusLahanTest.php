@@ -7,7 +7,9 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Mockery;
 use Tests\TestCase;
 
 class SensusLahanTest extends TestCase
@@ -55,6 +57,30 @@ class SensusLahanTest extends TestCase
         $retryResponse->assertOk()
             ->assertJsonPath('data.id', $firstResponse->json('data.id'));
         $this->assertDatabaseCount('penggarap_lahans', 1);
+    }
+
+    public function test_missing_client_uuid_is_rejected_and_logged_without_request_values(): void
+    {
+        Storage::fake('local');
+        $user = User::factory()->create();
+        $payload = $this->validPayload();
+        unset($payload['client_uuid']);
+        Log::shouldReceive('warning')->once()->with(
+            'Sensus ditolak karena client_uuid tidak valid.',
+            Mockery::on(fn (array $context): bool => $context['user_id'] === $user->id
+                && $context['reason'] === 'missing'
+                && $context['input_count'] === count($payload)
+                && ! array_key_exists('nama', $context)
+                && ! array_key_exists('foto', $context)),
+        );
+
+        $this->actingAs($user)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post('/sensus', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('client_uuid');
+
+        $this->assertDatabaseCount('penggarap_lahans', 0);
     }
 
     public function test_coordinates_outside_utm_latitude_range_are_rejected(): void

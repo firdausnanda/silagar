@@ -1,3 +1,5 @@
+import { repairQueuedCreateEntry } from './clientUuid';
+
 const DATABASE_NAME = 'sensus-lahan-v1';
 const MAX_CACHED_SERVER_RECORDS = 200;
 let databasePromise;
@@ -87,12 +89,39 @@ export async function saveEntry(ownerId, entry) {
 export async function listEntries(ownerId) {
     const database = await openDatabase();
     return new Promise((resolve, reject) => {
-        const request = database.transaction('entries')
-            .objectStore('entries')
-            .index('owner_id')
-            .getAll(Number(ownerId));
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
+        const transaction = database.transaction('entries', 'readwrite');
+        const store = transaction.objectStore('entries');
+        const request = store.index('owner_id').getAll(Number(ownerId));
+        let entries = [];
+        let repaired = false;
+
+        request.onsuccess = () => {
+            try {
+                entries = request.result.map((entry) => {
+                    const replacement = repairQueuedCreateEntry(entry);
+                    if (!replacement) {
+                        return entry;
+                    }
+
+                    store.put(replacement);
+                    store.delete(entry.client_uuid);
+                    repaired = true;
+
+                    return replacement;
+                });
+            } catch (error) {
+                transaction.abort();
+                reject(error);
+            }
+        };
+        transaction.oncomplete = () => {
+            if (repaired) {
+                notifyChange();
+            }
+            resolve(entries);
+        };
+        transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error ?? new Error('Antrean sensus tidak dapat diperbaiki.'));
     });
 }
 
@@ -134,6 +163,40 @@ export async function cacheServerRecords(ownerId, records) {
                 owner_id: Number(ownerId),
                 records: recentServerRecords([...(request.result?.records ?? []), ...records]),
             });
+        };
+        transaction.oncomplete = resolve;
+        transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error);
+    });
+    notifyChange();
+}
+
+export async function reconcileCompleteServerRecords(ownerId, records) {
+    const database = await openDatabase();
+    const knownUuids = new Set(records.map((record) => record.client_uuid));
+    const knownIds = new Set(records.map((record) => Number(record.id)));
+
+    await new Promise((resolve, reject) => {
+        const transaction = database.transaction(['server_records', 'entries'], 'readwrite');
+        transaction.objectStore('server_records').put({
+            owner_id: Number(ownerId),
+            records: recentServerRecords(records),
+        });
+
+        const cursorRequest = transaction.objectStore('entries')
+            .index('owner_id')
+            .openCursor(IDBKeyRange.only(Number(ownerId)));
+        cursorRequest.onsuccess = () => {
+            const cursor = cursorRequest.result;
+            if (!cursor) {
+                return;
+            }
+            if (cursor.value.status === 'synced'
+                && !knownUuids.has(cursor.value.client_uuid)
+                && !knownIds.has(Number(cursor.value.server_record?.id))) {
+                cursor.delete();
+            }
+            cursor.continue();
         };
         transaction.oncomplete = resolve;
         transaction.onerror = () => reject(transaction.error);

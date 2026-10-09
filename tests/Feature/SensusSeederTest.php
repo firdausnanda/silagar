@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use Database\Seeders\DatabaseSeeder;
 use Database\Seeders\PenggarapLahanSeeder;
+use Database\Seeders\RoleSeeder;
 use Database\Seeders\UserSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -16,11 +16,13 @@ class SensusSeederTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_database_seeder_creates_ten_thousand_fake_records_for_twenty_petugas_without_duplicates(): void
+    public function test_demo_seeders_create_ten_thousand_fake_records_for_twenty_petugas_without_duplicates(): void
     {
         Storage::fake('local');
 
-        $this->seed(DatabaseSeeder::class);
+        $this->seed(UserSeeder::class);
+        $this->seed(RoleSeeder::class);
+        $this->seed(PenggarapLahanSeeder::class);
 
         $this->assertDatabaseCount('users', 21);
         $this->assertDatabaseCount('penggarap_lahans', 10000);
@@ -38,6 +40,7 @@ class SensusSeederTest extends TestCase
         $this->assertSame(0, DB::table('penggarap_lahans')->whereNull('utm_x')->orWhereNull('utm_y')->orWhereNull('utm_epsg')->count());
         $this->assertSame([32749, 32750], DB::table('penggarap_lahans')->distinct()->orderBy('utm_epsg')->pluck('utm_epsg')->all());
         $this->assertDatabaseHas('users', ['email' => 'test@example.com']);
+        $this->assertSame(21, DB::table('model_has_roles')->count());
         $this->assertTrue(Hash::check('password', DB::table('users')->where('email', 'petugas01@example.test')->value('password')));
 
         $first = DB::table('penggarap_lahans')->first();
@@ -45,7 +48,9 @@ class SensusSeederTest extends TestCase
         Storage::disk('local')->assertExists($first->foto_path);
         $originalCoordinates = [$first->latitude, $first->longitude, $first->utm_x, $first->utm_y, $first->utm_epsg];
 
-        $this->seed(DatabaseSeeder::class);
+        $this->seed(UserSeeder::class);
+        $this->seed(RoleSeeder::class);
+        $this->seed(PenggarapLahanSeeder::class);
 
         $this->assertDatabaseCount('users', 21);
         $this->assertDatabaseCount('penggarap_lahans', 10000);

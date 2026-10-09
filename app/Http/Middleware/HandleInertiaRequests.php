@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Illuminate\Http\Request;
 use Inertia\Middleware;
+use Lab404\Impersonate\Services\ImpersonateManager;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -33,6 +34,8 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'auth' => [
                 'user' => $request->user(),
+                'is_admin' => $request->user()?->hasRole('admin') ?? false,
+                'is_impersonating' => $request->user() !== null && app(ImpersonateManager::class)->isImpersonating(),
             ],
         ];
     }

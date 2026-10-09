@@ -21,7 +21,7 @@ export default function UpdateProfileInformation({ mustVerifyEmail, status }) {
 
             <form onSubmit={submit} className="mt-5 space-y-4">
                 <div>
-                    <label htmlFor="name" className="mb-1 block text-sm font-semibold text-stone-800">Nama petugas</label>
+                    <label htmlFor="name" className="mb-1 block text-sm font-semibold text-stone-800">Nama lengkap</label>
                     <input id="name" className="field-input" value={data.name} onChange={(event) => setData('name', event.target.value)} required autoComplete="name" />
                     <InputError className="mt-2" message={errors.name} />
                 </div>

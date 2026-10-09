@@ -2,7 +2,6 @@ import axios from 'axios';
 import { useCallback, useEffect, useState } from 'react';
 import { syncQueuedEntries } from './sensusData';
 import {
-    cacheServerRecords,
     getCachedServerRecords,
     listEntries,
     updateEntry,
@@ -57,9 +56,9 @@ export function syncForOwner(ownerId, options = {}) {
     return task;
 }
 
-export function useSensusRecords(ownerId, serverRecords = []) {
+export function useSensusRecords(ownerId) {
     const [localEntries, setLocalEntries] = useState([]);
-    const [cachedRecords, setCachedRecords] = useState(serverRecords);
+    const [cachedRecords, setCachedRecords] = useState([]);
     const [storageError, setStorageError] = useState(null);
     const [syncing, setSyncing] = useState(false);
 
@@ -90,21 +89,9 @@ export function useSensusRecords(ownerId, serverRecords = []) {
     }, [ownerId, refresh]);
 
     useEffect(() => {
-        const initialize = async () => {
-            await refresh();
-            if (navigator.onLine) {
-                try {
-                    await cacheServerRecords(ownerId, serverRecords);
-                    await refresh();
-                } catch (error) {
-                    setStorageError('Data server belum dapat disimpan untuk akses luring.');
-                }
-                attemptSync(true);
-            }
-        };
-        initialize();
+        refresh();
+        attemptSync();
 
-        const onOnline = () => attemptSync();
         const onVisible = () => {
             if (document.visibilityState === 'visible') {
                 attemptSync();
@@ -113,7 +100,6 @@ export function useSensusRecords(ownerId, serverRecords = []) {
         const onStart = () => setSyncing(true);
         const onEnd = () => setSyncing(false);
         const timer = window.setInterval(() => attemptSync(), 60000);
-        window.addEventListener('online', onOnline);
         window.addEventListener('sensus-changed', refresh);
         window.addEventListener('sensus-sync-start', onStart);
         window.addEventListener('sensus-sync-end', onEnd);
@@ -121,7 +107,6 @@ export function useSensusRecords(ownerId, serverRecords = []) {
 
         return () => {
             window.clearInterval(timer);
-            window.removeEventListener('online', onOnline);
             window.removeEventListener('sensus-changed', refresh);
             window.removeEventListener('sensus-sync-start', onStart);
             window.removeEventListener('sensus-sync-end', onEnd);

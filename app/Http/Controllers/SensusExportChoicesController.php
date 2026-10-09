@@ -3,20 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\PenggarapLahan;
-use App\Models\User;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class SensusExportChoicesController extends Controller
 {
-    public function __invoke(): JsonResponse
+    public function __invoke(Request $request): JsonResponse
     {
-        $users = User::query()
-            ->select(['id', 'name'])
-            ->orderBy('name')
-            ->get();
-
         $records = PenggarapLahan::query()
             ->select(['id', 'nama', 'no_hp', 'latitude', 'longitude', 'captured_at', 'created_by'])
+            ->where('created_by', $request->user()->id)
             ->with('creator:id,name')
             ->orderByDesc('captured_at')
             ->orderByDesc('id')
@@ -34,7 +30,7 @@ class SensusExportChoicesController extends Controller
             ]);
 
         return response()->json([
-            'users' => $users,
+            'users' => [],
             'records' => $records,
         ])->header('Cache-Control', 'private, no-store');
     }
