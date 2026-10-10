@@ -145,7 +145,7 @@ export default function Login({ status, canResetPassword, googleLoginEnabled = f
                             className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-forest px-4 font-bold text-white shadow-md transition-all duration-200 hover:bg-forest-light hover:shadow-lg disabled:cursor-wait disabled:opacity-70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest"
                         >
                             <BusyIndicator active={processing} />
-                            {processing ? 'Memverifikasi...' : 'Masuk ke Dasbor'}
+                            {processing ? 'Memverifikasi...' : 'Masuk ke Sistem'}
                         </button>
                     </form>
 
