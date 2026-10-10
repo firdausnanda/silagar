@@ -101,10 +101,18 @@ class GoogleLoginController extends Controller
             return redirect()->route('login')->withErrors(['google' => 'Akun Google tidak terdaftar, tidak aktif, atau tidak sesuai dengan akun yang terhubung.']);
         }
 
+        if (! $user->hasRole('admin') && ! $user->hasRole('user')) {
+            return redirect()->route('login')->withErrors(['google' => 'Akun belum memiliki hak akses. Hubungi admin.']);
+        }
+
         Auth::guard('web')->login($user);
         $request->session()->regenerate();
 
         $home = $user->hasRole('admin') ? 'admin.dashboard' : 'dashboard';
+
+        if ($user->hasRole('admin') && $request->session()->get('url.intended') === route('dashboard')) {
+            $request->session()->forget('url.intended');
+        }
 
         return redirect()->intended(route($home, absolute: false));
     }
@@ -127,7 +135,7 @@ class GoogleLoginController extends Controller
                 return null;
             }
 
-            if ($user->google_sub === null) {
+            if ($user->google_sub === null && ($user->hasRole('admin') || $user->hasRole('user'))) {
                 $user->google_sub = $googleSub;
                 $user->save();
             }

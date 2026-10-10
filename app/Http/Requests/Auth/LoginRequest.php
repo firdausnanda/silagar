@@ -50,6 +50,14 @@ class LoginRequest extends FormRequest
             ]);
         }
 
+        if (! $this->user()->hasRole('admin') && ! $this->user()->hasRole('user')) {
+            Auth::guard('web')->logout();
+
+            throw ValidationException::withMessages([
+                'email' => 'Akun belum memiliki hak akses. Hubungi admin.',
+            ])->redirectTo(route('login'));
+        }
+
         RateLimiter::clear($this->throttleKey());
     }
 

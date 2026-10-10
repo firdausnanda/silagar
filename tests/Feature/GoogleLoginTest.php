@@ -34,6 +34,7 @@ class GoogleLoginTest extends TestCase
     {
         $this->configureGoogleLogin();
         $user = User::factory()->create(['email' => 'petugas@example.test']);
+        $this->get('/dashboard')->assertRedirect('/login');
         $oauth = $this->startGoogleLogin();
         $this->fakeGoogleIdentity($oauth, 'petugas@example.test', 'google-sub-123');
 
@@ -61,6 +62,44 @@ class GoogleLoginTest extends TestCase
             ->assertRedirect(route('admin.dashboard', absolute: false));
 
         $this->assertAuthenticatedAs($admin);
+    }
+
+    public function test_admin_opening_pwa_dashboard_before_google_login_returns_to_admin_dashboard(): void
+    {
+        $this->configureGoogleLogin();
+        Role::findOrCreate('admin', 'web');
+        $admin = User::factory()->create(['email' => 'admin@example.test']);
+        $admin->assignRole('admin');
+        $this->get('/dashboard')->assertRedirect('/login');
+        $oauth = $this->startGoogleLogin();
+        $this->fakeGoogleIdentity($oauth, $admin->email, 'google-admin-sub');
+
+        $response = $this->get(route('login.google.callback', ['state' => $oauth['state'], 'code' => 'valid-code']));
+
+        $this->assertAuthenticatedAs($admin);
+        $response->assertRedirect(route('admin.dashboard', absolute: false));
+        $this->get($response->headers->get('Location'))->assertOk();
+    }
+
+    public function test_roleless_google_account_receives_login_error_instead_of_dashboard_403(): void
+    {
+        $this->configureGoogleLogin();
+        $user = User::query()->create([
+            'name' => 'Belum Diberi Role',
+            'email' => 'tanpa-role@example.test',
+            'password' => 'password',
+        ]);
+        $this->get('/dashboard')->assertRedirect('/login');
+        $oauth = $this->startGoogleLogin();
+        $this->fakeGoogleIdentity($oauth, $user->email, 'google-roleless-sub');
+
+        $response = $this->get(route('login.google.callback', ['state' => $oauth['state'], 'code' => 'valid-code']));
+
+        $this->assertGuest();
+        $response->assertRedirect(route('login'))->assertSessionHasErrors([
+            'google' => 'Akun belum memiliki hak akses. Hubungi admin.',
+        ]);
+        $this->assertNull($user->fresh()->google_sub);
     }
 
     public function test_unregistered_google_account_does_not_create_a_user(): void

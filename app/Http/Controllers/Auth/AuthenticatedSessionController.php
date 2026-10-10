@@ -37,6 +37,10 @@ class AuthenticatedSessionController extends Controller
 
         $home = $request->user()->hasRole('admin') ? 'admin.dashboard' : 'dashboard';
 
+        if ($request->user()->hasRole('admin') && $request->session()->get('url.intended') === route('dashboard')) {
+            $request->session()->forget('url.intended');
+        }
+
         return redirect()->intended(route($home, absolute: false));
     }
 
