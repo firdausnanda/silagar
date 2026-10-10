@@ -1,8 +1,24 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="id">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description" content="Sistem Informasi Pendataan dan Inventarisasi Hutan Sosial.">
+        <meta name="author" content="Firdaus Nanda Christian">
+        <meta property="og:type" content="website">
+        <meta property="og:locale" content="id_ID">
+        <meta property="og:site_name" content="{{ config('app.name') }}">
+        <meta property="og:title" content="{{ config('app.name') }}">
+        <meta property="og:description" content="Sistem Informasi Pendataan dan Inventarisasi Hutan Sosial.">
+        <meta property="og:url" content="{{ url('/') }}">
+        <meta property="og:image" content="{{ asset('app-icon-512.png') }}">
+        <meta property="og:image:width" content="512">
+        <meta property="og:image:height" content="512">
+        <meta property="og:image:alt" content="Ikon {{ config('app.name') }}">
+        <meta name="twitter:card" content="summary">
+        <meta name="twitter:title" content="{{ config('app.name') }}">
+        <meta name="twitter:description" content="Sistem Informasi Pendataan dan Inventarisasi Hutan Sosial.">
+        <meta name="twitter:image" content="{{ asset('app-icon-512.png') }}">
 
         <title inertia>{{ config('app.name') }}</title>
 
@@ -21,6 +37,7 @@
         <meta name="theme-color" content="#143e2c">
         <meta name="apple-mobile-web-app-title" content="{{ config('app.name') }}">
         <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="mobile-web-app-capable" content="yes">
 
         <!-- Scripts -->
         @routes

@@ -20,7 +20,7 @@ export default function Login({ status, canResetPassword, googleLoginEnabled = f
     };
 
     return (
-        <div className="relative flex min-h-screen flex-col items-center justify-center bg-surface text-on-surface">
+        <div className="relative flex min-h-screen min-h-[100dvh] flex-col items-center justify-center bg-surface text-on-surface">
             <Head title="Masuk" />
             
             {/* Subtle Dot Pattern Background */}
@@ -32,33 +32,33 @@ export default function Login({ status, canResetPassword, googleLoginEnabled = f
                 }}
             ></div>
 
-            <main className="relative z-10 w-full max-w-md px-4 py-10 sm:px-0">
-                <div className="mb-8 flex flex-col items-center text-center">
+            <main className="relative z-10 w-full max-w-md px-4 py-4 sm:py-6">
+                <div className="mb-4 flex flex-col items-center text-center">
                     <Link href="/">
-                        <ApplicationLogo className="h-20 w-20" />
+                        <ApplicationLogo className="h-12 w-12 sm:h-14 sm:w-14" />
                     </Link>
-                    <h1 className="mt-6 text-2xl font-bold tracking-tight text-forest sm:text-3xl">Masuk ke SIPINTAR HUT</h1>
-                    <p className="mt-2 text-sm text-forest/70">
+                    <h1 className="mt-2 text-xl font-bold tracking-tight text-forest sm:text-2xl">Masuk ke SIPINTAR HUT</h1>
+                    <p className="mt-1 text-xs leading-snug text-forest/70 sm:text-sm">
                         Sistem Informasi Pendataan dan Inventarisasi Hutan Sosial
                     </p>
                 </div>
 
-                <section aria-label="Formulir masuk" className="rounded-2xl border border-outline-variant/30 bg-surface-container-lowest p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] sm:p-10">
+                <section aria-label="Formulir masuk" className="rounded-2xl border border-outline-variant/30 bg-surface-container-lowest p-4 shadow-[0_8px_30px_rgb(0,0,0,0.06)] sm:p-6">
                     {status && (
-                        <p role="status" className="mb-6 rounded-xl bg-primary-fixed px-4 py-3 text-sm text-on-primary-fixed font-medium">
+                        <p role="status" className="mb-3 rounded-xl bg-primary-fixed px-4 py-3 text-sm text-on-primary-fixed font-medium">
                             {status}
                         </p>
                     )}
 
                     {errors.google && (
-                        <p role="alert" className="mb-6 rounded-xl bg-error/10 px-4 py-3 text-sm font-medium text-error">
+                        <p role="alert" className="mb-3 rounded-xl bg-error/10 px-4 py-3 text-sm font-medium text-error">
                             {errors.google}
                         </p>
                     )}
 
-                    <form onSubmit={submit} className="space-y-6">
+                    <form onSubmit={submit} className="space-y-3">
                         <div>
-                            <label htmlFor="email" className="mb-2 block text-sm font-semibold text-forest">
+                            <label htmlFor="email" className="mb-1 block text-sm font-semibold text-forest">
                                 Alamat Email
                             </label>
                             <input
@@ -78,7 +78,7 @@ export default function Login({ status, canResetPassword, googleLoginEnabled = f
                         </div>
 
                         <div>
-                            <div className="mb-2 flex items-center justify-between gap-3">
+                            <div className="mb-1 flex items-center justify-between gap-3">
                                 <label htmlFor="password" className="text-sm font-semibold text-forest">
                                     Kata Sandi
                                 </label>
@@ -150,8 +150,8 @@ export default function Login({ status, canResetPassword, googleLoginEnabled = f
                     </form>
 
                     {googleLoginEnabled && (
-                        <div className="mt-6">
-                            <div className="mb-6 flex items-center gap-3" aria-hidden="true">
+                        <div className="mt-3">
+                            <div className="mb-3 flex items-center gap-3" aria-hidden="true">
                                 <span className="h-px flex-1 bg-outline-variant/60" />
                                 <span className="text-xs font-medium text-on-surface-variant">atau</span>
                                 <span className="h-px flex-1 bg-outline-variant/60" />
@@ -168,12 +168,11 @@ export default function Login({ status, canResetPassword, googleLoginEnabled = f
                                 </svg>
                                 Masuk dengan Google
                             </a>
-                            <p className="mt-3 text-center text-xs text-on-surface-variant">Gunakan email yang sudah terdaftar.</p>
                         </div>
                     )}
                 </section>
                 
-                <footer className="mt-10 text-center text-xs text-on-surface-variant/60">
+                <footer className="mt-4 hidden text-center text-xs text-on-surface-variant/60 sm:block">
                     &copy; {new Date().getFullYear()} SIPINTAR HUT. Seluruh hak cipta dilindungi.
                 </footer>
             </main>
