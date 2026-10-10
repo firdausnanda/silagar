@@ -52,6 +52,29 @@ test('repairs a failed queued entry while retaining its photo and form data', ()
     assert.equal(entry.client_uuid, '');
 });
 
+test('retries an existing bodyless upload failure once after the transport fix', () => {
+    const photo = new Blob(['foto'], { type: 'image/jpeg' });
+    const entry = {
+        owner_id: 5,
+        client_uuid: 'a1bb6027-36d5-4731-af89-b00ce819de02',
+        nama: 'Siti',
+        foto: photo,
+        status: 'failed',
+        retryable: false,
+        error: 'The client uuid field is required.',
+    };
+
+    const repaired = repairQueuedCreateEntry(entry);
+
+    assert.equal(repaired.status, 'pending');
+    assert.equal(repaired.retryable, true);
+    assert.equal(repaired.foto, photo);
+    assert.equal(repaired.client_uuid, entry.client_uuid);
+    assert.equal(repaired.bodyless_upload_retry_attempted, true);
+    assert.equal(repairQueuedCreateEntry({ ...repaired, status: 'failed', retryable: false, error: entry.error }), null);
+    assert.equal(repairQueuedCreateEntry({ ...entry, error: 'The nama field is required.' }), null);
+});
+
 test('leaves synced entries and pending edits untouched', () => {
     const invalidId = 'server-7';
     const cryptoProvider = { randomUUID: () => { throw new Error('No UUID needed.'); } };

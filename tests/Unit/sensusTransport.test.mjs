@@ -41,11 +41,20 @@ test('new bidang still sends the stored photo and UUID as POST', async () => {
         captured_at: '2026-10-08T09:15:00Z',
         foto: new File(['gambar'], 'lahan.jpg', { type: 'image/jpeg' }),
     };
+    let photoReads = 0;
+    const readPhoto = entry.foto.arrayBuffer.bind(entry.foto);
+    entry.foto.arrayBuffer = async () => {
+        photoReads += 1;
+        return readPhoto();
+    };
 
     const result = await sendSensusEntry(entry, client, (name) => `/${name}`);
 
     assert.equal(request.url, '/sensus.store');
     assert.equal(request.data.get('client_uuid'), 'abc');
-    assert.equal(request.data.get('foto').name, 'lahan.jpg');
+    const uploadedPhoto = request.data.get('foto');
+    assert.equal(uploadedPhoto.name, 'lahan.jpg');
+    assert.equal(await uploadedPhoto.text(), 'gambar');
+    assert.equal(photoReads, 1);
     assert.deepEqual(result, { id: 8 });
 });

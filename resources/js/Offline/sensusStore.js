@@ -152,7 +152,9 @@ export async function listEntries(ownerId) {
                     }
 
                     store.put(replacement);
-                    store.delete(entry.client_uuid);
+                    if (replacement.client_uuid !== entry.client_uuid) {
+                        store.delete(entry.client_uuid);
+                    }
                     repaired = true;
 
                     return replacement;

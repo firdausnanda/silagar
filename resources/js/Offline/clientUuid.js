@@ -26,8 +26,24 @@ export function validOrNewClientUuid(value, cryptoProvider = globalThis.crypto) 
 }
 
 export function repairQueuedCreateEntry(entry, cryptoProvider = globalThis.crypto) {
-    if (entry.operation === 'update' || entry.status === 'synced' || isValidClientUuid(entry.client_uuid)) {
+    if (entry.operation === 'update' || entry.status === 'synced') {
         return null;
+    }
+
+    if (isValidClientUuid(entry.client_uuid)) {
+        if (entry.status !== 'failed' || entry.retryable !== false
+            || entry.error !== 'The client uuid field is required.'
+            || entry.bodyless_upload_retry_attempted || !entry.foto?.size) {
+            return null;
+        }
+
+        return {
+            ...entry,
+            status: 'pending',
+            retryable: true,
+            error: null,
+            bodyless_upload_retry_attempted: true,
+        };
     }
 
     return {

@@ -21,7 +21,8 @@ export async function sendSensusEntry(entry, client, resolveRoute) {
             form.append(field, entry[field]);
         }
     }
-    form.append('foto', entry.foto, entry.foto.name);
+    const photo = new Blob([await entry.foto.arrayBuffer()], { type: entry.foto.type });
+    form.append('foto', photo, entry.foto.name);
 
     const response = await client.post(resolveRoute('sensus.store'), form, {
         headers: { Accept: 'application/json' },
