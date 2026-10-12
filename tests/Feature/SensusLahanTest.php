@@ -400,13 +400,20 @@ class SensusLahanTest extends TestCase
     {
         Storage::fake('local');
         $owner = User::factory()->create();
+        $payload = $this->validPayload();
+        $payload['nama_kth'] = 'KTH Tunas Hutan';
         $this->actingAs($owner)->withHeaders(['Accept' => 'application/json'])
-            ->post('/sensus', $this->validPayload())->assertCreated();
+            ->post('/sensus', $payload)->assertCreated()
+            ->assertJsonPath('data.nama_kth', 'KTH Tunas Hutan');
         $record = PenggarapLahan::firstOrFail();
         $photoPath = $record->foto_path;
 
+        $this->getJson('/dashboard/records?search=KTH%20Tunas')
+            ->assertOk()->assertJsonPath('records.0.nama_kth', 'KTH Tunas Hutan');
+
         $response = $this->patch("/sensus/{$record->id}", [
             'nama' => 'Siti Rahma',
+            'nama_kth' => 'KTH Rimba Jaya',
             'no_hp' => '081234567890',
             'luas_garapan' => 1.25,
             'lama_menggarap' => 9,
@@ -414,16 +421,30 @@ class SensusLahanTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('data.nama', 'Siti Rahma')
+            ->assertJsonPath('data.nama_kth', 'KTH Rimba Jaya')
             ->assertJsonPath('data.no_hp', '081234567890');
         $this->assertDatabaseCount('penggarap_lahans', 1);
         $this->assertDatabaseHas('penggarap_lahans', [
             'id' => $record->id,
             'created_by' => $owner->id,
             'nama' => 'Siti Rahma',
+            'nama_kth' => 'KTH Rimba Jaya',
             'luas_garapan' => 1.25,
             'foto_path' => $photoPath,
         ]);
         Storage::disk('local')->assertExists($photoPath);
+    }
+
+    public function test_nama_kth_cannot_exceed_one_hundred_characters(): void
+    {
+        $owner = User::factory()->create();
+        $payload = $this->validPayload();
+        $payload['nama_kth'] = str_repeat('K', 101);
+
+        $this->actingAs($owner)->postJson('/sensus', $payload)
+            ->assertUnprocessable()->assertJsonValidationErrors('nama_kth');
+
+        $this->assertDatabaseCount('penggarap_lahans', 0);
     }
 
     public function test_owner_can_replace_photo_and_gps_on_existing_bidang(): void

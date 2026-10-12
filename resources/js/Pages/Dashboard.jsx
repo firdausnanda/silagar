@@ -57,7 +57,7 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
     const [search, setSearch] = useState('');
     const [selectedUuid, setSelectedUuid] = useState(null);
     const [editRecord, setEditRecord] = useState(null);
-    const [editData, setEditData] = useState({ nama: '', no_hp: '', luas_garapan: '', lama_menggarap: '' });
+    const [editData, setEditData] = useState({ nama: '', nama_kth: '', no_hp: '', luas_garapan: '', lama_menggarap: '' });
     const [editError, setEditError] = useState('');
     const [editSaving, setEditSaving] = useState(false);
     const [editPhoto, setEditPhoto] = useState(null);
@@ -330,7 +330,7 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
     const filteredRecords = records.filter((record) => {
         const matchesFilter = filter === 'semua' || (filter === 'pending' ? record.status !== 'synced' : record.status === 'synced');
         const query = search.trim().toLowerCase();
-        const matchesSearch = !query || [record.nama, record.no_hp, record.latitude, record.longitude]
+        const matchesSearch = !query || [record.nama, record.nama_kth, record.no_hp, record.latitude, record.longitude]
             .some((value) => String(value ?? '').toLowerCase().includes(query));
         return matchesFilter && matchesSearch;
     });
@@ -497,6 +497,7 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
         setEditRecord(record);
         setEditData({
             nama: record.nama ?? '',
+            nama_kth: record.nama_kth ?? '',
             no_hp: record.no_hp ?? '',
             luas_garapan: String(record.luas_garapan ?? ''),
             lama_menggarap: String(record.lama_menggarap ?? ''),
@@ -525,14 +526,15 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
             allowEscapeKey: false,
         });
         const nama = editData.nama.trim();
+        const namaKth = editData.nama_kth.trim();
         const noHp = editData.no_hp.trim();
         const luas = Number(editData.luas_garapan);
         const lama = Number(editData.lama_menggarap);
-        if (!nama || nama.length > 100 || noHp.length > 20
+        if (!nama || nama.length > 100 || namaKth.length > 100 || noHp.length > 20
             || !/^\d+(\.\d{1,2})?$/.test(editData.luas_garapan)
             || !Number.isFinite(luas) || luas <= 0 || luas > 999999.99
             || !Number.isInteger(lama) || lama < 0 || lama > 150) {
-            const message = 'Periksa nama, nomor HP, luas garapan, dan lama menggarap.';
+            const message = 'Periksa nama penggarap, Nama KTH, nomor HP, luas, dan lama menggarap.';
             setEditError(message);
             await alert.fire({ icon: 'error', title: 'Data belum valid', text: message, confirmButtonText: 'Periksa lagi' });
             return;
@@ -569,6 +571,7 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
                     operation: serverId === null ? 'create' : 'update',
                     server_id: serverId,
                     nama,
+                    nama_kth: namaKth || null,
                     no_hp: noHp || null,
                     luas_garapan: String(luas),
                     lama_menggarap: String(lama),
@@ -817,8 +820,8 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
                             {' · '}Total bidang Anda: {numberFormat.format(summary.total)}
                         </span>
                     </div>
-                    <label htmlFor="cari" className="sr-only">Cari nama, nomor HP, atau koordinat</label>
-                    <input id="cari" type="search" maxLength="100" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari nama, nomor HP, atau koordinat" className="min-h-12 w-full rounded-lg border-stone-300 bg-white text-base focus:border-forest focus:ring-forest" />
+                    <label htmlFor="cari" className="sr-only">Cari penggarap, KTH, nomor HP, atau koordinat</label>
+                    <input id="cari" type="search" maxLength="100" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari penggarap, KTH, nomor HP, atau koordinat" className="min-h-12 w-full rounded-lg border-stone-300 bg-white text-base focus:border-forest focus:ring-forest" />
                     {searchLoading && <p role="status" className="flex items-center gap-2 text-sm text-stone-700"><BusyIndicator active={searchLoading} />Mencari di server...</p>}
                     {!online && search.trim() && <p className="text-sm text-stone-700">Pencarian luring hanya mencakup bidang yang tersimpan di perangkat ini.</p>}
                     {pageError && (
@@ -853,6 +856,7 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
                                         {incompleteLabel(record) && <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-950">{incompleteLabel(record)}</span>}
                                     </div>
                                     <p className="mt-1 text-sm text-stone-700">{numberFormat.format(Number(record.luas_garapan))} Ha · {record.lama_menggarap} tahun</p>
+                                    {record.nama_kth && <p className="mt-1 break-words text-xs text-stone-700">KTH: {record.nama_kth}</p>}
                                     <p className="mt-1 text-xs text-stone-700">{formatDate(record.captured_at)}</p>
                                 </div>
                             </div>
@@ -891,6 +895,10 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
                     <div>
                         <label htmlFor="edit-nama" className="mb-1 block text-sm font-semibold">Nama penggarap</label>
                         <input id="edit-nama" className="field-input" maxLength="100" required value={editData.nama} onChange={(event) => setEditData({ ...editData, nama: event.target.value })} />
+                    </div>
+                    <div>
+                        <label htmlFor="edit-nama-kth" className="mb-1 block text-sm font-semibold">Nama KTH (opsional)</label>
+                        <input id="edit-nama-kth" className="field-input" maxLength="100" value={editData.nama_kth} onChange={(event) => setEditData({ ...editData, nama_kth: event.target.value })} />
                     </div>
                     <div>
                         <label htmlFor="edit-no-hp" className="mb-1 block text-sm font-semibold">Nomor HP / WhatsApp (opsional)</label>
@@ -960,6 +968,7 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
                             </div>
                             <dl className="grid grid-cols-2 gap-3 text-sm">
                                 <div><dt className="text-stone-600">Luas</dt><dd className="font-semibold">{numberFormat.format(Number(selected.luas_garapan))} Ha</dd></div>
+                                {selected.nama_kth && <div className="col-span-2"><dt className="text-stone-600">Nama KTH</dt><dd className="break-words font-semibold">{selected.nama_kth}</dd></div>}
                                 <div><dt className="text-stone-600">Lama garap</dt><dd className="font-semibold">{selected.lama_menggarap} tahun</dd></div>
                                 <div><dt className="text-stone-600">Lintang</dt><dd className="break-all font-mono">{selected.latitude ?? 'Belum tersedia'}</dd></div>
                                 <div><dt className="text-stone-600">Bujur</dt><dd className="break-all font-mono">{selected.longitude ?? 'Belum tersedia'}</dd></div>

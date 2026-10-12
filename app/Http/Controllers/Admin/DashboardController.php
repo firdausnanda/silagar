@@ -27,6 +27,7 @@ class DashboardController extends Controller
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($query) use ($search): void {
                     $query->where('nama', 'like', '%'.$search.'%')
+                        ->orWhere('nama_kth', 'like', '%'.$search.'%')
                         ->orWhere('no_hp', 'like', '%'.$search.'%');
                 });
             })
@@ -36,6 +37,7 @@ class DashboardController extends Controller
             ->through(fn (PenggarapLahan $record): array => [
                 'id' => $record->id,
                 'nama' => $record->nama,
+                'nama_kth' => $record->nama_kth,
                 'no_hp' => $record->no_hp,
                 'luas_garapan' => (float) $record->luas_garapan,
                 'lama_menggarap' => $record->lama_menggarap,

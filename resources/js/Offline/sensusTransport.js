@@ -2,6 +2,7 @@ export async function sendSensusEntry(entry, client, resolveRoute) {
     if (entry.operation === 'update') {
         const data = {
             nama: entry.nama,
+            nama_kth: entry.nama_kth ?? null,
             no_hp: entry.no_hp,
             luas_garapan: entry.luas_garapan,
             lama_menggarap: entry.lama_menggarap,
@@ -38,7 +39,7 @@ export async function sendSensusEntry(entry, client, resolveRoute) {
 
     const form = new FormData();
     for (const field of [
-        'client_uuid', 'nama', 'no_hp', 'luas_garapan', 'lama_menggarap',
+        'client_uuid', 'nama', 'nama_kth', 'no_hp', 'luas_garapan', 'lama_menggarap',
         'latitude', 'longitude', 'gps_accuracy_m', 'captured_at',
     ]) {
         if (entry[field] !== null && entry[field] !== undefined) {

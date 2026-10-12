@@ -16,6 +16,7 @@ class SensusExportController extends Controller
     private const COLUMN_LABELS = [
         'id' => 'ID bidang',
         'nama' => 'Nama penggarap',
+        'nama_kth' => 'Nama KTH',
         'no_hp' => 'Nomor HP',
         'luas_garapan' => 'Luas garapan (Ha)',
         'lama_menggarap' => 'Lama menggarap (tahun)',
@@ -93,6 +94,7 @@ class SensusExportController extends Controller
         return match ($column) {
             'id' => $record->id,
             'nama' => $record->nama,
+            'nama_kth' => $record->nama_kth ?? '',
             'no_hp' => $record->no_hp ?? '',
             'luas_garapan' => (float) $record->luas_garapan,
             'lama_menggarap' => $record->lama_menggarap,

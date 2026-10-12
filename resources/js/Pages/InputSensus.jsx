@@ -21,6 +21,7 @@ const emptyDraft = {
     gps_accuracy_m: null,
     captured_at: null,
     nama: '',
+    nama_kth: '',
     no_hp: '',
     luas_garapan: '',
     lama_menggarap: '',
@@ -244,24 +245,25 @@ export default function InputSensus() {
 
     const getValidatedIdentityData = () => {
         const nama = String(draft.nama ?? '').trim();
+        const namaKth = String(draft.nama_kth ?? '').trim();
         const noHp = String(draft.no_hp ?? '').trim();
         const luas = Number(draft.luas_garapan);
         const lama = Number(draft.lama_menggarap);
-        if (!nama || nama.length > 100 || noHp.length > 20
+        if (!nama || nama.length > 100 || namaKth.length > 100 || noHp.length > 20
             || !Number.isFinite(luas) || luas <= 0 || luas > 999999.99
             || !/^\d+(\.\d{1,2})?$/.test(String(draft.luas_garapan))
             || !Number.isInteger(lama) || lama < 0 || lama > 150) {
             return null;
         }
 
-        return { nama, no_hp: noHp, luas_garapan: String(luas), lama_menggarap: String(lama) };
+        return { nama, nama_kth: namaKth, no_hp: noHp, luas_garapan: String(luas), lama_menggarap: String(lama) };
     };
 
     const goToStepTwo = async (event) => {
         event.preventDefault();
         const identity = getValidatedIdentityData();
         if (!identity) {
-            setFormError('Periksa nama, luas dalam hektar, lama garap, dan nomor kontak.');
+            setFormError('Periksa nama penggarap, Nama KTH, luas, lama garap, dan nomor kontak.');
             return;
         }
         try {
@@ -292,7 +294,7 @@ export default function InputSensus() {
         }
         const identity = getValidatedIdentityData();
         if (!identity) {
-            const message = 'Periksa nama, luas dalam hektar, lama garap, dan nomor kontak.';
+            const message = 'Periksa nama penggarap, Nama KTH, luas, lama garap, dan nomor kontak.';
             setFormError(message);
             await Swal.fire({ icon: 'error', title: 'Data belum valid', text: message, confirmButtonText: 'Periksa lagi', confirmButtonColor: '#143E2C' });
             return;
@@ -430,6 +432,7 @@ export default function InputSensus() {
                                     <div>
                                         <h2 className="font-bold text-forest">Identitas penggarap</h2>
                                         <p className="mt-1 text-sm text-stone-700">{draft.nama} · {draft.luas_garapan} Ha · {draft.lama_menggarap} tahun</p>
+                                        {draft.nama_kth && <p className="mt-1 text-sm text-stone-700">KTH: {draft.nama_kth}</p>}
                                     </div>
                                     <button type="button" onClick={goBackToIdentity} disabled={processing || savedLocally} className="min-h-10 shrink-0 text-sm font-semibold text-forest underline disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest">Ubah</button>
                                 </div>
@@ -496,6 +499,9 @@ export default function InputSensus() {
                                 </div>
                                 <Field label="Nama lengkap penggarap" id="nama" required>
                                     <input id="nama" type="text" maxLength="100" required value={draft.nama} onChange={(event) => persist({ nama: event.target.value })} className="field-input" placeholder="Nama penggarap" />
+                                </Field>
+                                <Field label="Nama KTH (opsional)" id="nama_kth">
+                                    <input id="nama_kth" type="text" maxLength="100" value={draft.nama_kth ?? ''} onChange={(event) => persist({ nama_kth: event.target.value })} className="field-input" placeholder="Nama kelompok tani hutan" />
                                 </Field>
                                 <Field label="Nomor HP / WhatsApp (opsional)" id="no_hp">
                                     <input id="no_hp" type="tel" maxLength="20" value={draft.no_hp ?? ''} onChange={(event) => persist({ no_hp: event.target.value })} className="field-input" placeholder="08..." />

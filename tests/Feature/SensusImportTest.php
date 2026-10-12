@@ -31,7 +31,7 @@ class SensusImportTest extends TestCase
         Storage::fake('local');
         $owner = User::factory()->create();
         $file = $this->excelFile([
-            ['Siti Aminah', '081234567890', 0.75, 8],
+            ['Siti Aminah', '081234567890', 0.75, 8, 'KTH Tunas Hutan'],
             ['Budi', '', 1.25, 3],
         ]);
 
@@ -43,18 +43,21 @@ class SensusImportTest extends TestCase
         $record = PenggarapLahan::query()->where('nama', 'Siti Aminah')->firstOrFail();
         $this->assertSame($owner->id, $record->created_by);
         $this->assertSame('081234567890', $record->no_hp);
+        $this->assertSame('KTH Tunas Hutan', $record->nama_kth);
         $this->assertNull($record->foto_path);
         $this->assertNull($record->latitude);
         $this->assertNull($record->longitude);
         $this->getJson(route('dashboard.records'))->assertOk()
             ->assertJsonPath('summary.total', 2)
             ->assertJsonPath('records.1.foto_url', null)
+            ->assertJsonPath('records.1.nama_kth', 'KTH Tunas Hutan')
             ->assertJsonPath('records.1.latitude', null);
         $this->get(route('sensus.photo', $record->id))->assertNotFound();
 
         $this->post(route('sensus.update', $record->id), [
             '_method' => 'PATCH',
             'nama' => 'Siti Aminah',
+            'nama_kth' => 'KTH Tunas Hutan',
             'no_hp' => '081234567890',
             'luas_garapan' => 0.75,
             'lama_menggarap' => 8,
@@ -120,7 +123,8 @@ class SensusImportTest extends TestCase
             $workbook = IOFactory::load($path);
             $this->assertSame([
                 'Nama penggarap', 'Nomor HP', 'Luas garapan (Ha)', 'Lama menggarap (tahun)',
-            ], $workbook->getSheet(0)->rangeToArray('A1:D1')[0]);
+                'Nama KTH',
+            ], $workbook->getSheet(0)->rangeToArray('A1:E1')[0]);
         } finally {
             if (isset($workbook)) {
                 $workbook->disconnectWorksheets();
@@ -154,7 +158,7 @@ class SensusImportTest extends TestCase
                 ->where('records.data.0.latitude', null));
     }
 
-    /** @param array<int, array{0: string, 1: string|int, 2: float|int, 3: int}> $rows */
+    /** @param array<int, array{0: string, 1: string|int, 2: float|int, 3: int, 4?: string}> $rows */
     private function excelFile(array $rows): UploadedFile
     {
         $workbook = new Spreadsheet;
@@ -162,11 +166,17 @@ class SensusImportTest extends TestCase
         $sheet->fromArray([[
             'Nama penggarap', 'Nomor HP', 'Luas garapan (Ha)', 'Lama menggarap (tahun)',
         ]]);
+        if (array_filter($rows, fn (array $row): bool => isset($row[4]))) {
+            $sheet->setCellValue('E1', 'Nama KTH');
+        }
         foreach ($rows as $index => $row) {
             $sheet->setCellValue('A'.($index + 2), $row[0]);
             $sheet->setCellValueExplicit('B'.($index + 2), (string) $row[1], is_int($row[1]) ? DataType::TYPE_NUMERIC : DataType::TYPE_STRING);
             $sheet->setCellValue('C'.($index + 2), $row[2]);
             $sheet->setCellValue('D'.($index + 2), $row[3]);
+            if (isset($row[4])) {
+                $sheet->setCellValue('E'.($index + 2), $row[4]);
+            }
         }
 
         $path = tempnam(sys_get_temp_dir(), 'sensus-import-');

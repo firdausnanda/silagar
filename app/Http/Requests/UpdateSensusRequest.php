@@ -19,6 +19,7 @@ class UpdateSensusRequest extends FormRequest
     {
         return [
             'nama' => ['required', 'string', 'max:100'],
+            'nama_kth' => ['nullable', 'string', 'max:100'],
             'no_hp' => ['nullable', 'string', 'max:20'],
             'luas_garapan' => ['required', 'numeric', 'gt:0', 'max:999999.99'],
             'lama_menggarap' => ['required', 'integer', 'min:0', 'max:150'],

@@ -15,6 +15,7 @@ class PenggarapLahan extends Model
 
     protected $fillable = [
         'nama',
+        'nama_kth',
         'no_hp',
         'luas_garapan',
         'lama_menggarap',

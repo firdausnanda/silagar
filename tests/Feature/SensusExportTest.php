@@ -21,11 +21,14 @@ class SensusExportTest extends TestCase
         $owner = User::factory()->create();
         $first = $this->createRecord($owner, '11111111-1111-4111-8111-111111111111', '=SUM(1,2)', '081234567890');
         $this->createRecord($owner, '22222222-2222-4222-8222-222222222222', 'Bidang lain', '089999999999');
-        $first->update(['nama' => '=2+2']);
+        $first->update(['nama' => '=2+2', 'nama_kth' => 'KTH Rimba Jaya']);
+
+        $this->actingAs($owner)->getJson(route('sensus.export.choices'))
+            ->assertOk()->assertJsonPath('records.1.nama_kth', 'KTH Rimba Jaya');
 
         $response = $this->actingAs($owner)->postJson(route('sensus.export'), [
             'ids' => [$first->id],
-            'columns' => ['nama', 'no_hp', 'luas_garapan', 'captured_at'],
+            'columns' => ['nama', 'nama_kth', 'no_hp', 'luas_garapan', 'captured_at'],
         ]);
 
         $response->assertOk()
@@ -38,15 +41,17 @@ class SensusExportTest extends TestCase
             $workbook = IOFactory::load($path);
             $sheet = $workbook->getActiveSheet();
 
-            $this->assertSame(['Nama penggarap', 'Nomor HP', 'Luas garapan (Ha)', 'Waktu pencatatan (WIB)'], $sheet->rangeToArray('A1:D1')[0]);
+            $this->assertSame(['Nama penggarap', 'Nama KTH', 'Nomor HP', 'Luas garapan (Ha)', 'Waktu pencatatan (WIB)'], $sheet->rangeToArray('A1:E1')[0]);
             $this->assertSame('=2+2', $sheet->getCell('A2')->getValue());
             $this->assertSame(DataType::TYPE_STRING, $sheet->getCell('A2')->getDataType());
-            $this->assertSame('081234567890', $sheet->getCell('B2')->getValue());
+            $this->assertSame('KTH Rimba Jaya', $sheet->getCell('B2')->getValue());
             $this->assertSame(DataType::TYPE_STRING, $sheet->getCell('B2')->getDataType());
-            $this->assertSame(0.75, $sheet->getCell('C2')->getValue());
-            $this->assertSame('08/10/2026 09:15 WIB', $sheet->getCell('D2')->getValue());
+            $this->assertSame('081234567890', $sheet->getCell('C2')->getValue());
+            $this->assertSame(DataType::TYPE_STRING, $sheet->getCell('C2')->getDataType());
+            $this->assertSame(0.75, $sheet->getCell('D2')->getValue());
+            $this->assertSame('08/10/2026 09:15 WIB', $sheet->getCell('E2')->getValue());
             $this->assertSame(2, $sheet->getHighestRow());
-            $this->assertSame('D', $sheet->getHighestColumn());
+            $this->assertSame('E', $sheet->getHighestColumn());
         } finally {
             if (isset($workbook)) {
                 $workbook->disconnectWorksheets();

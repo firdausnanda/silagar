@@ -33,15 +33,16 @@ class SensusImportController extends Controller
             $sheet = $workbook->getSheet(0);
             $sheet->setTitle('Data bidang');
 
-            foreach (array_values(self::HEADERS) as $index => $heading) {
+            foreach ([...array_values(self::HEADERS), 'Nama KTH'] as $index => $heading) {
                 $sheet->setCellValueExplicit(Coordinate::stringFromColumnIndex($index + 1).'1', $heading, DataType::TYPE_STRING);
             }
 
-            $sheet->getStyle('A1:D1')->getFont()->setBold(true);
+            $sheet->getStyle('A1:E1')->getFont()->setBold(true);
             $sheet->getColumnDimension('A')->setWidth(28);
             $sheet->getColumnDimension('B')->setWidth(20);
             $sheet->getColumnDimension('C')->setWidth(22);
             $sheet->getColumnDimension('D')->setWidth(28);
+            $sheet->getColumnDimension('E')->setWidth(28);
             $sheet->freezePane('A2');
 
             try {
@@ -101,6 +102,14 @@ class SensusImportController extends Controller
                 ]);
             }
 
+            for ($columnIndex = 1; $columnIndex <= $sheets[0]['totalColumns']; $columnIndex++) {
+                $value = $sheet->getCell(Coordinate::stringFromColumnIndex($columnIndex).'1')->getValue();
+                if (is_string($value) && mb_strtolower(trim($value)) === mb_strtolower('Nama KTH')) {
+                    $columns['nama_kth'] = $columnIndex;
+                    break;
+                }
+            }
+
             $rows = [];
             for ($rowNumber = 2; $rowNumber <= $sheets[0]['totalRows']; $rowNumber++) {
                 $values = [];
@@ -121,10 +130,11 @@ class SensusImportController extends Controller
 
                 $validator = Validator::make($values, [
                     'nama' => ['required', 'string', 'max:100'],
+                    'nama_kth' => ['nullable', 'string', 'max:100'],
                     'no_hp' => ['nullable', 'string', 'max:20'],
                     'luas_garapan' => ['required', 'numeric', 'gt:0', 'max:999999.99'],
                     'lama_menggarap' => ['required', 'integer', 'min:0', 'max:150'],
-                ], [], self::HEADERS);
+                ], [], [...self::HEADERS, 'nama_kth' => 'Nama KTH']);
                 if ($validator->fails()) {
                     throw ValidationException::withMessages([
                         'file' => "Baris {$rowNumber}: ".$validator->errors()->first(),
@@ -145,6 +155,7 @@ class SensusImportController extends Controller
             foreach ($rows as $row) {
                 $record = new PenggarapLahan([
                     ...$row,
+                    'nama_kth' => ($row['nama_kth'] ?? '') ?: null,
                     'no_hp' => $row['no_hp'] ?: null,
                     'client_uuid' => (string) Str::uuid(),
                 ]);

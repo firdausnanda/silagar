@@ -58,6 +58,7 @@ class AdminAccessTest extends TestCase
         $firstPetugas = User::factory()->create();
         $secondPetugas = User::factory()->create();
         $first = $this->createRecord($firstPetugas, 'Bidang pertama');
+        $first->update(['nama_kth' => 'KTH Rimba Jaya']);
         $this->createRecord($secondPetugas, 'Bidang kedua');
 
         $this->actingAs($admin)->get('/admin')
@@ -69,6 +70,12 @@ class AdminAccessTest extends TestCase
                 ->has('records.data', 2));
 
         $this->get('/admin?user_id='.$firstPetugas->id)
+            ->assertInertia(fn ($page) => $page
+                ->has('records.data', 1)
+                ->where('records.data.0.nama_kth', 'KTH Rimba Jaya')
+                ->where('records.data.0.id', $first->id));
+
+        $this->get('/admin?search=KTH%20Rimba')
             ->assertInertia(fn ($page) => $page
                 ->has('records.data', 1)
                 ->where('records.data.0.id', $first->id));

@@ -7,6 +7,7 @@ import { filterExportRecords } from './sensusExportData';
 const exportColumns = [
     ['id', 'ID bidang'],
     ['nama', 'Nama penggarap'],
+    ['nama_kth', 'Nama KTH'],
     ['no_hp', 'Nomor HP'],
     ['luas_garapan', 'Luas garapan (Ha)'],
     ['lama_menggarap', 'Lama menggarap (tahun)'],
@@ -22,7 +23,7 @@ const exportColumns = [
 ];
 
 const defaultColumns = [
-    'nama', 'no_hp', 'luas_garapan', 'lama_menggarap',
+    'nama', 'nama_kth', 'no_hp', 'luas_garapan', 'lama_menggarap',
     'latitude', 'longitude', 'captured_at',
 ];
 const maxExportRecords = 1000;

@@ -45,6 +45,7 @@ class SensusController extends Controller
             $record = new PenggarapLahan([
                 'client_uuid' => $data['client_uuid'],
                 'nama' => $data['nama'],
+                'nama_kth' => $data['nama_kth'] ?? null,
                 'no_hp' => $data['no_hp'] ?? null,
                 'luas_garapan' => $data['luas_garapan'],
                 'lama_menggarap' => $data['lama_menggarap'],
