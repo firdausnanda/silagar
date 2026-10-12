@@ -173,7 +173,7 @@ export default function Login({ status, canResetPassword, googleLoginEnabled = f
                 </section>
                 
                 <footer className="mt-4 hidden text-center text-xs text-on-surface-variant/60 sm:block">
-                    &copy; {new Date().getFullYear()} SIPINTAR HUT. Seluruh hak cipta dilindungi.
+                    SIPINTAR HUT &copy; {new Date().getFullYear()} CDK Wilayah Trenggalek
                 </footer>
             </main>
         </div>

@@ -1,14 +1,38 @@
 export async function sendSensusEntry(entry, client, resolveRoute) {
     if (entry.operation === 'update') {
-        const response = await client.patch(resolveRoute('sensus.update', entry.server_id), {
+        const data = {
             nama: entry.nama,
             no_hp: entry.no_hp,
             luas_garapan: entry.luas_garapan,
             lama_menggarap: entry.lama_menggarap,
-        }, {
+        };
+        if (entry.location_updated) {
+            for (const field of ['latitude', 'longitude', 'gps_accuracy_m', 'captured_at']) {
+                data[field] = entry[field];
+            }
+        } else if (entry.foto && entry.captured_at) {
+            data.captured_at = entry.captured_at;
+        }
+
+        const options = {
             headers: { Accept: 'application/json' },
             withXSRFToken: true,
-        });
+        };
+        let response;
+        if (entry.foto) {
+            const form = new FormData();
+            form.append('_method', 'PATCH');
+            for (const [field, value] of Object.entries(data)) {
+                if (value !== undefined) {
+                    form.append(field, value ?? '');
+                }
+            }
+            const photo = new Blob([await entry.foto.arrayBuffer()], { type: entry.foto.type });
+            form.append('foto', photo, entry.foto.name);
+            response = await client.post(resolveRoute('sensus.update', entry.server_id), form, options);
+        } else {
+            response = await client.patch(resolveRoute('sensus.update', entry.server_id), data, options);
+        }
         return response.data.data;
     }
 

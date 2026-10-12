@@ -4,6 +4,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\SensusController;
 use App\Http\Controllers\SensusExportChoicesController;
 use App\Http\Controllers\SensusExportController;
+use App\Http\Controllers\SensusImportController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -16,6 +17,8 @@ Route::get('/input-sensus-2', fn () => redirect()->route('input-sensus'))->name(
 Route::post('/sensus', [SensusController::class, 'store'])->name('sensus.store');
 Route::get('/sensus/export/choices', SensusExportChoicesController::class)->name('sensus.export.choices');
 Route::post('/sensus/export', SensusExportController::class)->name('sensus.export');
+Route::get('/sensus/import/template', [SensusImportController::class, 'template'])->name('sensus.import.template');
+Route::post('/sensus/import', [SensusImportController::class, 'store'])->name('sensus.import');
 Route::patch('/sensus/{record}', [SensusController::class, 'update'])->name('sensus.update');
 Route::delete('/sensus/{record}', [SensusController::class, 'destroy'])->name('sensus.destroy');
 Route::get('/sensus/{record}/foto', [SensusController::class, 'photo'])->name('sensus.photo');

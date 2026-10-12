@@ -65,6 +65,7 @@ class AdminAccessTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->component('Admin/Dashboard')
                 ->where('summary.total', 2)
+                ->where('records.data.0.lama_menggarap', 3)
                 ->has('records.data', 2));
 
         $this->get('/admin?user_id='.$firstPetugas->id)

@@ -59,15 +59,18 @@ export default function Dashboard({ records, summary, recorders, filters }) {
                 </form>
 
                 <div className="mt-5 overflow-x-auto">
-                    <table className="min-w-[760px] w-full border-collapse text-left text-sm">
-                        <thead><tr className="border-b border-stone-200 text-stone-600"><th className="py-3 pr-4 font-semibold">Bidang</th><th className="py-3 pr-4 font-semibold">Petugas</th><th className="py-3 pr-4 font-semibold">Luas</th><th className="py-3 pr-4 font-semibold">Koordinat</th><th className="py-3 font-semibold">Dicatat</th></tr></thead>
+                    <table className="min-w-[820px] w-full border-collapse text-left text-sm">
+                        <thead><tr className="border-b border-stone-200 text-stone-600"><th className="py-3 pr-4 font-semibold">Bidang</th><th className="py-3 pr-4 font-semibold">Petugas</th><th className="py-3 pr-4 font-semibold">Garapan</th><th className="py-3 pr-4 font-semibold">Koordinat</th><th className="py-3 font-semibold">Dicatat</th></tr></thead>
                         <tbody>
                             {records.data.map((record) => (
                                 <tr key={record.id} className="border-b border-stone-100 align-top">
-                                    <td className="py-3 pr-4"><strong className="text-forest">{record.nama}</strong><span className="mt-1 block text-xs text-stone-500">#{record.id}{record.no_hp ? ` · ${record.no_hp}` : ''}</span><a href={record.foto_url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block font-semibold text-forest underline decoration-emerald-300 underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest">Lihat foto</a></td>
+                                    <td className="py-3 pr-4"><strong className="text-forest">{record.nama}</strong><span className="mt-1 block text-xs text-stone-500">#{record.id}{record.no_hp ? ` · ${record.no_hp}` : ''}</span>{record.foto_url ? <a href={record.foto_url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block font-semibold text-forest underline decoration-emerald-300 underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest">Lihat foto</a> : <span className="mt-1 block text-xs font-medium text-amber-800">Foto belum tersedia</span>}</td>
                                     <td className="py-3 pr-4">{record.creator_name}</td>
-                                    <td className="py-3 pr-4">{numberFormat.format(record.luas_garapan)} Ha</td>
-                                    <td className="py-3 pr-4 font-mono text-xs">{record.latitude.toFixed(6)}, {record.longitude.toFixed(6)}</td>
+                                    <td className="py-3 pr-4">
+                                        <span className="block whitespace-nowrap font-semibold text-forest">{numberFormat.format(record.luas_garapan)} Ha</span>
+                                        <span className="mt-1 block whitespace-nowrap text-xs text-stone-600">{record.lama_menggarap} tahun menggarap</span>
+                                    </td>
+                                    <td className="py-3 pr-4 font-mono text-xs">{record.latitude === null || record.longitude === null ? 'Belum tersedia' : `${record.latitude.toFixed(6)}, ${record.longitude.toFixed(6)}`}</td>
                                     <td className="py-3">{record.captured_at ? `${dateFormat.format(new Date(record.captured_at))} WIB` : 'Belum tersedia'}</td>
                                 </tr>
                             ))}

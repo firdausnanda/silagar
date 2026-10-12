@@ -38,11 +38,12 @@ class DashboardController extends Controller
                 'nama' => $record->nama,
                 'no_hp' => $record->no_hp,
                 'luas_garapan' => (float) $record->luas_garapan,
-                'latitude' => (float) $record->latitude,
-                'longitude' => (float) $record->longitude,
+                'lama_menggarap' => $record->lama_menggarap,
+                'latitude' => $record->latitude === null ? null : (float) $record->latitude,
+                'longitude' => $record->longitude === null ? null : (float) $record->longitude,
                 'captured_at' => $record->captured_at?->toIso8601String(),
                 'creator_name' => $record->creator?->name ?? 'Pengguna tidak tersedia',
-                'foto_url' => route('admin.sensus.photo', $record->id, false),
+                'foto_url' => $record->foto_path === null ? null : route('admin.sensus.photo', $record->id, false),
             ]);
 
         $summary = DB::table('penggarap_lahans')

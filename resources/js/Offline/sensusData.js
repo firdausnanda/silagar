@@ -86,6 +86,7 @@ export async function syncQueuedEntries(store, send, { force = false, onlyUuid =
                 status: 'synced',
                 error: null,
                 foto: null,
+                location_updated: false,
                 server_record: serverRecord,
                 retryable: false,
             });

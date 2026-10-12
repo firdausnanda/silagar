@@ -84,6 +84,8 @@ class SensusController extends Controller
             ->where('created_by', $request->user()->id)
             ->findOrFail($record);
 
+        abort_if($penggarapLahan->foto_path === null, 404);
+
         if ($penggarapLahan->foto_storage === 'google_drive') {
             return $photos->response($penggarapLahan->foto_path);
         }
@@ -93,13 +95,50 @@ class SensusController extends Controller
         return Storage::disk('local')->response($penggarapLahan->foto_path);
     }
 
-    public function update(UpdateSensusRequest $request, int $record): JsonResponse
+    public function update(UpdateSensusRequest $request, int $record, GoogleDrivePhotoStorage $photos): JsonResponse
     {
         $penggarapLahan = PenggarapLahan::query()
             ->where('created_by', $request->user()->id)
             ->findOrFail($record);
 
-        $penggarapLahan->update($request->validated());
+        $data = $request->validated();
+        $newPhotoPath = null;
+        $newPhotoStorage = null;
+
+        if ($request->hasFile('foto')) {
+            $newPhotoStorage = $photos->isEnabled() ? 'google_drive' : 'local';
+            $newPhotoPath = $newPhotoStorage === 'google_drive'
+                ? $photos->store($request->file('foto'), $request->user())
+                : $request->file('foto')->store('sensus/'.$request->user()->id, 'local');
+            if ($newPhotoPath === false) {
+                throw new RuntimeException('Foto sensus tidak dapat disimpan.');
+            }
+            $data['foto_path'] = $newPhotoPath;
+            $data['foto_storage'] = $newPhotoStorage;
+        }
+
+        $oldPhotoPath = $penggarapLahan->foto_path;
+        $oldPhotoStorage = $penggarapLahan->foto_storage;
+        try {
+            unset($data['foto']);
+            if (isset($data['latitude'], $data['longitude'])) {
+                $data = [
+                    ...$data,
+                    ...UtmConverter::fromCoordinates((float) $data['latitude'], (float) $data['longitude']),
+                ];
+            }
+
+            $penggarapLahan->update($data);
+        } catch (Throwable $exception) {
+            if ($newPhotoPath !== null) {
+                $this->deletePhoto($newPhotoStorage, $newPhotoPath, $photos);
+            }
+            throw $exception;
+        }
+
+        if ($newPhotoPath !== null && $oldPhotoPath !== null) {
+            $this->deletePhoto($oldPhotoStorage, $oldPhotoPath, $photos);
+        }
 
         return (new PenggarapLahanResource($penggarapLahan))->response();
     }
@@ -114,7 +153,9 @@ class SensusController extends Controller
         $fotoStorage = $penggarapLahan->foto_storage;
         $penggarapLahan->delete();
 
-        $this->deletePhoto($fotoStorage, $fotoPath, $photos);
+        if ($fotoPath !== null) {
+            $this->deletePhoto($fotoStorage, $fotoPath, $photos);
+        }
 
         return response()->noContent();
     }
@@ -130,12 +171,12 @@ class SensusController extends Controller
                 return;
             }
 
-            Log::warning('Foto sensus tidak dapat dihapus setelah data dihapus.', [
+            Log::warning('Foto sensus tidak dapat dihapus.', [
                 'foto_path' => $fotoPath,
                 'foto_storage' => $fotoStorage,
             ]);
         } catch (Throwable $exception) {
-            Log::warning('Foto sensus tidak dapat dihapus setelah data dihapus.', [
+            Log::warning('Foto sensus tidak dapat dihapus.', [
                 'foto_path' => $fotoPath,
                 'foto_storage' => $fotoStorage,
                 'error' => $exception->getMessage(),

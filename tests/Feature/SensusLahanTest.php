@@ -426,6 +426,165 @@ class SensusLahanTest extends TestCase
         Storage::disk('local')->assertExists($photoPath);
     }
 
+    public function test_owner_can_replace_photo_and_gps_on_existing_bidang(): void
+    {
+        Storage::fake('local');
+        $owner = User::factory()->create();
+        $this->actingAs($owner)->postJson('/sensus', $this->validPayload())->assertCreated();
+        $record = PenggarapLahan::firstOrFail();
+        $oldPhotoPath = $record->foto_path;
+
+        $response = $this->post(route('sensus.update', $record->id), [
+            '_method' => 'PATCH',
+            'nama' => 'Siti Aminah',
+            'no_hp' => null,
+            'luas_garapan' => 0.75,
+            'lama_menggarap' => 8,
+            'foto' => UploadedFile::fake()->image('foto-baru.jpg'),
+            'latitude' => -6.9,
+            'longitude' => 107.6,
+            'gps_accuracy_m' => 3,
+            'captured_at' => '2026-10-12T02:15:00Z',
+        ], ['Accept' => 'application/json']);
+
+        $response->assertOk()
+            ->assertJsonPath('data.id', $record->id)
+            ->assertJsonPath('data.latitude', -6.9)
+            ->assertJsonPath('data.longitude', 107.6)
+            ->assertJsonPath('data.utm_epsg', 32748);
+        $record->refresh();
+        $this->assertDatabaseCount('penggarap_lahans', 1);
+        $this->assertSame('local', $record->foto_storage);
+        $this->assertNotSame($oldPhotoPath, $record->foto_path);
+        $this->assertSame('2026-10-12T02:15:00+00:00', $record->captured_at->toIso8601String());
+        Storage::disk('local')->assertMissing($oldPhotoPath);
+        Storage::disk('local')->assertExists($record->foto_path);
+    }
+
+    public function test_gps_only_edit_keeps_photo_and_requires_both_coordinates(): void
+    {
+        Storage::fake('local');
+        $owner = User::factory()->create();
+        $this->actingAs($owner)->postJson('/sensus', $this->validPayload())->assertCreated();
+        $record = PenggarapLahan::firstOrFail();
+        $photoPath = $record->foto_path;
+        $fields = [
+            'nama' => 'Siti Aminah',
+            'no_hp' => null,
+            'luas_garapan' => 0.75,
+            'lama_menggarap' => 8,
+        ];
+
+        $this->patchJson(route('sensus.update', $record->id), [
+            ...$fields,
+            'latitude' => -6.9,
+        ])->assertUnprocessable()->assertJsonValidationErrors('longitude');
+        $this->assertSame('-7.28912400', $record->fresh()->latitude);
+
+        $this->patchJson(route('sensus.update', $record->id), [
+            ...$fields,
+            'latitude' => -6.9,
+            'longitude' => 107.6,
+            'gps_accuracy_m' => 3,
+        ])->assertOk()->assertJsonPath('data.utm_epsg', 32748);
+
+        $record->refresh();
+        $this->assertSame($photoPath, $record->foto_path);
+        $this->assertSame('3.00', $record->gps_accuracy_m);
+        Storage::disk('local')->assertExists($photoPath);
+    }
+
+    public function test_photo_only_edit_uses_connected_drive_and_keeps_existing_coordinates(): void
+    {
+        Storage::fake('local');
+        $owner = User::factory()->create();
+        $this->actingAs($owner)->postJson('/sensus', $this->validPayload())->assertCreated();
+        $record = PenggarapLahan::firstOrFail();
+        $oldPhotoPath = $record->foto_path;
+        $oldLatitude = $record->latitude;
+        $oldLongitude = $record->longitude;
+        $oldUtmEpsg = $record->utm_epsg;
+        $this->configureDrivePhotoConnection();
+        Http::preventStrayRequests();
+        Http::fake($this->drivePhotoResponses());
+
+        $this->post(route('sensus.update', $record->id), [
+            '_method' => 'PATCH',
+            'nama' => 'Siti Aminah',
+            'no_hp' => null,
+            'luas_garapan' => 0.75,
+            'lama_menggarap' => 8,
+            'foto' => UploadedFile::fake()->image('foto-baru.jpg'),
+        ], ['Accept' => 'application/json'])->assertOk();
+
+        $record->refresh();
+        $this->assertSame('google_drive', $record->foto_storage);
+        $this->assertSame('photo-file-id', $record->foto_path);
+        $this->assertSame($oldLatitude, $record->latitude);
+        $this->assertSame($oldLongitude, $record->longitude);
+        $this->assertSame($oldUtmEpsg, $record->utm_epsg);
+        Storage::disk('local')->assertMissing($oldPhotoPath);
+        $this->get(route('sensus.photo', $record->id))->assertOk();
+    }
+
+    public function test_invalid_replacement_photo_preserves_the_original(): void
+    {
+        Storage::fake('local');
+        $owner = User::factory()->create();
+        $this->actingAs($owner)->postJson('/sensus', $this->validPayload())->assertCreated();
+        $record = PenggarapLahan::firstOrFail();
+        $photoPath = $record->foto_path;
+
+        $this->post(route('sensus.update', $record->id), [
+            '_method' => 'PATCH',
+            'nama' => 'Siti Aminah',
+            'no_hp' => null,
+            'luas_garapan' => 0.75,
+            'lama_menggarap' => 8,
+            'foto' => UploadedFile::fake()->create('catatan.txt', 1, 'text/plain'),
+        ], ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors('foto');
+
+        $this->assertSame($photoPath, $record->fresh()->foto_path);
+        Storage::disk('local')->assertExists($photoPath);
+    }
+
+    public function test_failed_drive_replacement_preserves_the_original_photo(): void
+    {
+        Storage::fake('local');
+        $owner = User::factory()->create();
+        $this->actingAs($owner)->postJson('/sensus', $this->validPayload())->assertCreated();
+        $record = PenggarapLahan::firstOrFail();
+        $photoPath = $record->foto_path;
+        $this->configureDrivePhotoConnection();
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://oauth2.googleapis.com/token' => Http::response(['access_token' => 'access-token']),
+            'https://www.googleapis.com/drive/v3/files/folder-id*' => Http::response([
+                'mimeType' => 'application/vnd.google-apps.folder',
+                'capabilities' => ['canAddChildren' => true],
+            ]),
+            'https://www.googleapis.com/drive/v3/files?*' => function ($request) {
+                return $this->existingDrivePhotoFolder($request);
+            },
+            'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable*' => Http::response([], 403),
+        ]);
+
+        $this->post(route('sensus.update', $record->id), [
+            '_method' => 'PATCH',
+            'nama' => 'Nama gagal disimpan',
+            'no_hp' => null,
+            'luas_garapan' => 0.75,
+            'lama_menggarap' => 8,
+            'foto' => UploadedFile::fake()->image('foto-baru.jpg'),
+        ], ['Accept' => 'application/json'])->assertInternalServerError();
+
+        $record->refresh();
+        $this->assertSame('Siti Aminah', $record->nama);
+        $this->assertSame('local', $record->foto_storage);
+        $this->assertSame($photoPath, $record->foto_path);
+        Storage::disk('local')->assertExists($photoPath);
+    }
+
     public function test_other_petugas_cannot_update_a_bidang(): void
     {
         Storage::fake('local');

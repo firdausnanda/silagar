@@ -23,7 +23,7 @@ export default function SensusPhoto({ file, src, alt = 'Foto lahan', className =
     }
 
     return (
-        <div className={`flex items-center justify-center bg-emerald-100 text-forest ${className}`} aria-label="Foto belum tersedia luring">
+        <div className={`flex items-center justify-center bg-emerald-100 text-forest ${className}`} aria-label="Foto belum tersedia">
             <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
                 <rect x="3" y="4" width="18" height="16" rx="2" />
                 <circle cx="8.5" cy="9" r="1.5" />

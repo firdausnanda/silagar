@@ -1,13 +1,16 @@
 import axios from 'axios';
 import { TrashIcon } from '@heroicons/react/24/outline';
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 import BusyIndicator from '../Components/BusyIndicator';
 import Modal from '../Components/Modal';
 import SensusExportModal from '../Components/SensusExportModal';
+import SensusImportModal from '../Components/SensusImportModal';
 import SensusPhoto from '../Components/SensusPhoto';
+import { captureCameraFrame } from '../Components/cameraFrame';
+import { getGpsErrorMessage, requestFreshGpsPosition } from '../Components/gpsLocation';
 import { countEnteredRecords, hasActiveSensusSync, mergeSensusRecords, selectDashboardEntries } from '../Offline/sensusData';
 import { consumeSavedSensusNotice } from '../Offline/sensusFeedback';
 import { cacheServerRecords, getEntry, listEntries, reconcileCompleteServerRecords, removeSensusRecord, saveEntry } from '../Offline/sensusStore';
@@ -32,6 +35,20 @@ function statusLabel(status) {
     }[status] ?? 'Menunggu kirim';
 }
 
+function incompleteLabel(record) {
+    const needsPhoto = !record.foto && !record.foto_url;
+    const needsGps = record.latitude === null || record.latitude === undefined
+        || record.longitude === null || record.longitude === undefined;
+
+    if (needsPhoto && needsGps) {
+        return 'Perlu foto dan titik GPS';
+    }
+    if (needsPhoto) {
+        return 'Perlu foto';
+    }
+    return needsGps ? 'Perlu titik GPS' : null;
+}
+
 export default function Dashboard({ records: initialRecords = [], next_cursor: initialNextCursor = null, summary: initialSummary = { total: 0, luas: 0 } }) {
     const ownerId = usePage().props.auth.user.id;
     const userName = usePage().props.auth.user.name;
@@ -43,8 +60,18 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
     const [editData, setEditData] = useState({ nama: '', no_hp: '', luas_garapan: '', lama_menggarap: '' });
     const [editError, setEditError] = useState('');
     const [editSaving, setEditSaving] = useState(false);
+    const [editPhoto, setEditPhoto] = useState(null);
+    const [editCapturedAt, setEditCapturedAt] = useState(null);
+    const [editGps, setEditGps] = useState(null);
+    const [editGpsStatus, setEditGpsStatus] = useState('idle');
+    const [editGpsError, setEditGpsError] = useState('');
+    const [editCameraOpen, setEditCameraOpen] = useState(false);
+    const [editCameraReady, setEditCameraReady] = useState(false);
+    const [editCameraError, setEditCameraError] = useState('');
+    const [editCapturing, setEditCapturing] = useState(false);
     const [deletingUuid, setDeletingUuid] = useState(null);
     const [exportOpen, setExportOpen] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
     const [online, setOnline] = useState(navigator.onLine);
     const [offlineReady, setOfflineReady] = useState(
         window.localStorage.getItem('sensus-offline-ready-owner') === String(ownerId),
@@ -63,6 +90,10 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
     const [offlineVisibleCount, setOfflineVisibleCount] = useState(30);
     const dialogRef = useRef(null);
     const editModalPanelRef = useRef(null);
+    const editVideoRef = useRef(null);
+    const editCameraStream = useRef(null);
+    const editGpsRequestId = useRef(0);
+    const editCaptureRequestId = useRef(0);
     const requestGeneration = useRef(0);
     const baseRecords = useRef(initialRecords);
     const baseNextCursor = useRef(initialNextCursor);
@@ -332,6 +363,136 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
         }
     };
 
+    useEffect(() => {
+        if (!editCameraOpen) {
+            return;
+        }
+
+        let active = true;
+        setEditCameraReady(false);
+        const openCamera = async () => {
+            if (!navigator.mediaDevices?.getUserMedia) {
+                setEditCameraError(window.isSecureContext
+                    ? 'Kamera tidak tersedia di browser atau perangkat ini.'
+                    : 'Kamera memerlukan alamat HTTPS atau localhost.');
+                setEditCameraOpen(false);
+                return;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: false,
+                    video: { facingMode: { ideal: 'environment' } },
+                });
+                if (!active) {
+                    stream.getTracks().forEach((track) => track.stop());
+                    return;
+                }
+                editCameraStream.current = stream;
+                editVideoRef.current.srcObject = stream;
+                await editVideoRef.current.play();
+                if (active) {
+                    setEditCameraReady(true);
+                }
+            } catch (error) {
+                if (active) {
+                    setEditCameraError(error.name === 'NotAllowedError'
+                        ? 'Izin kamera ditolak. Aktifkan izin kamera pada browser lalu coba lagi.'
+                        : error.name === 'NotFoundError'
+                            ? 'Kamera tidak ditemukan pada perangkat ini.'
+                            : 'Kamera tidak dapat dibuka. Tutup aplikasi lain yang memakai kamera lalu coba lagi.');
+                    setEditCameraOpen(false);
+                }
+            }
+        };
+        openCamera();
+
+        return () => {
+            active = false;
+            editCameraStream.current?.getTracks().forEach((track) => track.stop());
+            editCameraStream.current = null;
+            if (editVideoRef.current) {
+                editVideoRef.current.srcObject = null;
+            }
+        };
+    }, [editCameraOpen]);
+
+    const closeEditCamera = () => {
+        editCaptureRequestId.current += 1;
+        setEditCapturing(false);
+        setEditCameraOpen(false);
+    };
+
+    const closeEdit = () => {
+        editGpsRequestId.current += 1;
+        closeEditCamera();
+        setEditRecord(null);
+    };
+
+    const takeEditPhoto = async () => {
+        if (editCapturing) {
+            return;
+        }
+
+        const requestId = ++editCaptureRequestId.current;
+        setEditCapturing(true);
+        try {
+            const blob = await captureCameraFrame(editVideoRef.current);
+            if (requestId !== editCaptureRequestId.current) {
+                return;
+            }
+            if (blob.size > 10 * 1024 * 1024) {
+                throw new Error('Foto terlalu besar. Coba jepret ulang.');
+            }
+            const capturedAt = new Date().toISOString();
+            setEditPhoto(new File([blob], `foto-lahan-${Date.now()}.jpg`, { type: 'image/jpeg' }));
+            setEditCapturedAt(capturedAt);
+            setEditCameraError('');
+            setEditCameraOpen(false);
+        } catch (error) {
+            if (requestId === editCaptureRequestId.current) {
+                setEditCameraError(error.message);
+            }
+        } finally {
+            if (requestId === editCaptureRequestId.current) {
+                setEditCapturing(false);
+            }
+        }
+    };
+
+    const takeEditGps = async () => {
+        const requestId = ++editGpsRequestId.current;
+        setEditGpsError('');
+        if (!navigator.geolocation) {
+            setEditGpsStatus('error');
+            setEditGpsError(window.isSecureContext
+                ? 'Browser atau perangkat ini tidak menyediakan akses lokasi.'
+                : 'Akses lokasi memerlukan alamat HTTPS atau localhost.');
+            return;
+        }
+
+        setEditGpsStatus('loading');
+        try {
+            const position = await requestFreshGpsPosition(navigator.geolocation);
+            if (requestId !== editGpsRequestId.current) {
+                return;
+            }
+            const { latitude, longitude, accuracy } = position.coords;
+            if (!Number.isFinite(latitude) || latitude < -80 || latitude > 84
+                || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+                throw new Error('Titik berada di luar cakupan koordinat UTM. Coba ambil ulang di lokasi lahan.');
+            }
+            setEditGps({ latitude, longitude, gps_accuracy_m: accuracy, captured_at: new Date(position.timestamp).toISOString() });
+            setEditGpsStatus('ready');
+        } catch (error) {
+            if (requestId !== editGpsRequestId.current) {
+                return;
+            }
+            setEditGpsStatus('error');
+            setEditGpsError(error.code ? getGpsErrorMessage(error, !navigator.onLine) : error.message);
+        }
+    };
+
     const openEdit = (record) => {
         setEditRecord(record);
         setEditData({
@@ -341,11 +502,18 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
             lama_menggarap: String(record.lama_menggarap ?? ''),
         });
         setEditError('');
+        setEditPhoto(null);
+        setEditCapturedAt(null);
+        setEditGps(null);
+        setEditGpsStatus('idle');
+        setEditGpsError('');
+        setEditCameraOpen(false);
+        setEditCameraError('');
     };
 
     const saveEdit = async (event) => {
         event.preventDefault();
-        if (editSaving) {
+        if (editSaving || editCameraOpen || editCapturing || editGpsStatus === 'loading') {
             return;
         }
 
@@ -386,16 +554,32 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
         setEditSaving(true);
         setEditError('');
         try {
-            const serverId = editRecord.server_id ?? editRecord.id ?? null;
-            await saveEntry(ownerId, {
-                ...editRecord,
-                client_uuid: editRecord.client_uuid ?? `server-${serverId}`,
-                operation: serverId === null ? 'create' : 'update',
-                server_id: serverId,
-                nama,
-                no_hp: noHp || null,
-                luas_garapan: String(luas),
-                lama_menggarap: String(lama),
+            await withSensusSyncPaused(ownerId, async () => {
+                const clientUuid = editRecord.client_uuid ?? `server-${editRecord.id}`;
+                const storedEntry = await getEntry(clientUuid);
+                const ownedEntry = Number(storedEntry?.owner_id) === Number(ownerId) ? storedEntry : null;
+                const serverId = ownedEntry?.server_record?.id ?? ownedEntry?.server_id ?? editRecord.server_id ?? editRecord.id ?? null;
+                const currentRecord = ownedEntry?.status === 'synced'
+                    ? ownedEntry.server_record ?? editRecord
+                    : ownedEntry ?? editRecord;
+                await saveEntry(ownerId, {
+                    ...currentRecord,
+                    ...ownedEntry,
+                    client_uuid: clientUuid,
+                    operation: serverId === null ? 'create' : 'update',
+                    server_id: serverId,
+                    nama,
+                    no_hp: noHp || null,
+                    luas_garapan: String(luas),
+                    lama_menggarap: String(lama),
+                    foto: editPhoto ?? ownedEntry?.foto ?? editRecord.foto ?? null,
+                    latitude: editGps?.latitude ?? currentRecord.latitude,
+                    longitude: editGps?.longitude ?? currentRecord.longitude,
+                    gps_accuracy_m: editGps?.gps_accuracy_m ?? currentRecord.gps_accuracy_m,
+                    captured_at: editGps?.captured_at ?? editCapturedAt ?? currentRecord.captured_at,
+                    location_updated: Boolean(editGps) || (ownedEntry?.status !== 'synced' && ownedEntry?.location_updated === true),
+                    ...(editGps ? { utm_x: null, utm_y: null, utm_epsg: null } : {}),
+                });
             });
             setSaveNotice('Perubahan tersimpan di perangkat. Status pengiriman terlihat di daftar bidang.');
             syncForOwner(ownerId).catch(() => {});
@@ -405,7 +589,7 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
                 text: 'Data tersimpan di perangkat. Status pengiriman terlihat di daftar bidang.',
                 confirmButtonText: 'Mengerti',
             });
-            setEditRecord(null);
+            closeEdit();
         } catch (error) {
             const message = 'Perubahan belum tersimpan di perangkat. Periksa ruang penyimpanan dan coba lagi.';
             setEditError(message);
@@ -613,13 +797,16 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
                     <span>Catat bidang baru</span><span aria-hidden="true" className="text-2xl">+</span>
                 </Link>
 
-                <section className="flex flex-col gap-3 rounded-xl border border-stone-300 bg-white p-4 sm:flex-row sm:items-center sm:justify-between" aria-label="Ekspor data">
+                <section className="flex flex-col gap-3 rounded-xl border border-stone-300 bg-white p-4 sm:flex-row sm:items-center sm:justify-between" aria-label="Impor dan ekspor data">
                     <div>
-                        <h2 className="font-bold text-forest">Butuh data di Excel?</h2>
-                        <p className="mt-1 text-sm text-stone-700">Pilih bidang dan kolom yang ingin diunduh.</p>
-                        {!online && <p className="mt-1 text-sm font-semibold text-amber-950">Ekspor tersedia saat koneksi aktif.</p>}
+                        <h2 className="font-bold text-forest">Data Excel</h2>
+                        <p className="mt-1 text-sm text-stone-700">Impor data penggarap atau unduh data bidang Anda.</p>
+                        {!online && <p className="mt-1 text-sm font-semibold text-amber-950">Impor dan ekspor tersedia saat koneksi aktif.</p>}
                     </div>
-                    <button type="button" onClick={() => setExportOpen(true)} disabled={!online} className="min-h-12 shrink-0 rounded-lg border border-forest px-4 font-bold text-forest disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">Ekspor Excel</button>
+                    <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={() => setImportOpen(true)} disabled={!online} className="min-h-12 rounded-lg bg-forest px-4 font-bold text-white disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">Impor Excel</button>
+                        <button type="button" onClick={() => setExportOpen(true)} disabled={!online} className="min-h-12 rounded-lg border border-forest px-4 font-bold text-forest disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">Ekspor Excel</button>
+                    </div>
                 </section>
 
                 <section className="space-y-3" aria-labelledby="daftar-title">
@@ -663,6 +850,7 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
                                     <div className="flex flex-wrap items-center gap-2">
                                         <h3 className="min-w-0 break-words font-bold text-forest">{record.nama}</h3>
                                         <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${record.status === 'synced' ? 'bg-emerald-100 text-emerald-900' : record.status === 'failed' ? 'bg-red-100 text-red-900' : 'bg-amber-100 text-amber-950'}`}>{statusLabel(record.status)}</span>
+                                        {incompleteLabel(record) && <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-950">{incompleteLabel(record)}</span>}
                                     </div>
                                     <p className="mt-1 text-sm text-stone-700">{numberFormat.format(Number(record.luas_garapan))} Ha · {record.lama_menggarap} tahun</p>
                                     <p className="mt-1 text-xs text-stone-700">{formatDate(record.captured_at)}</p>
@@ -688,12 +876,16 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
             </main>
 
             <SensusExportModal show={exportOpen} onClose={() => setExportOpen(false)} pendingCount={summary.pending} online={online} />
+            <SensusImportModal show={importOpen} onClose={() => setImportOpen(false)} onImported={(count) => {
+                setSaveNotice(`${count} bidang berhasil diimpor. Lengkapi foto dan titik GPS melalui Edit data.`);
+                router.reload({ only: ['records', 'next_cursor', 'summary'] });
+            }} />
 
-            <Modal show={editRecord !== null} onClose={() => { if (!editSaving && !Swal.isVisible()) setEditRecord(null); }} panelRef={editModalPanelRef} maxWidth="md">
+            <Modal show={editRecord !== null} onClose={() => { if (!editSaving && !Swal.isVisible()) closeEdit(); }} panelRef={editModalPanelRef} maxWidth="md">
                 <form onSubmit={saveEdit} className="space-y-4 p-5 sm:p-6">
                     <div>
                         <h2 className="text-lg font-bold text-forest">Edit data bidang</h2>
-                        <p className="mt-1 text-sm text-stone-700">Perubahan disimpan di perangkat lalu dikirim saat koneksi tersedia. Foto dan titik GPS tetap.</p>
+                        <p className="mt-1 text-sm text-stone-700">Ubah data, foto, atau titik GPS. Perubahan disimpan di perangkat lalu dikirim saat koneksi tersedia.</p>
                     </div>
                     {editError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm font-medium text-red-800">{editError}</p>}
                     <div>
@@ -714,9 +906,45 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
                             <input id="edit-lama" type="number" inputMode="numeric" min="0" max="150" step="1" className="field-input" required value={editData.lama_menggarap} onChange={(event) => setEditData({ ...editData, lama_menggarap: event.target.value })} />
                         </div>
                     </div>
+                    <section aria-labelledby="edit-foto-title" className="space-y-3 border-t border-stone-200 pt-4">
+                        <div>
+                            <h3 id="edit-foto-title" className="font-bold text-forest">Foto lahan</h3>
+                            <p className="text-sm text-stone-600">Jepret ulang bila foto sebelumnya perlu diganti.</p>
+                        </div>
+                        {editCameraOpen ? (
+                            <div className="overflow-hidden rounded-xl bg-stone-950">
+                                <video ref={editVideoRef} autoPlay muted playsInline aria-label="Pratinjau kamera lahan" className="aspect-[4/3] w-full object-cover" />
+                                <p role="status" className="flex items-center justify-center gap-2 px-3 py-2 text-sm text-white"><BusyIndicator active={!editCameraReady} />{editCameraReady ? 'Kamera siap' : 'Membuka kamera...'}</p>
+                                <div className="flex gap-2 bg-white p-3">
+                                    <button type="button" onClick={closeEditCamera} className="min-h-12 rounded-lg border border-forest px-4 font-semibold text-forest focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest">Batal</button>
+                                    <button type="button" onClick={takeEditPhoto} disabled={!editCameraReady || editCapturing} className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-lg bg-forest px-4 font-semibold text-white disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest"><BusyIndicator active={editCapturing} />{editCapturing ? 'Menyimpan foto...' : 'Jepret foto'}</button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                <SensusPhoto file={editPhoto ?? editRecord?.foto} src={online ? editRecord?.foto_url : null} alt={`Foto bidang ${editRecord?.nama ?? ''}`} className="h-44 w-full rounded-lg" />
+                                <button type="button" onClick={() => { setEditCameraError(''); setEditCameraOpen(true); }} className="min-h-12 w-full rounded-lg border border-forest px-4 font-semibold text-forest focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest">{editPhoto ? 'Ambil ulang foto' : 'Ganti foto'}</button>
+                                {editPhoto && <p role="status" className="text-sm font-medium text-forest">Foto baru siap disimpan.</p>}
+                            </div>
+                        )}
+                        {editCameraError && <p role="alert" className="text-sm font-medium text-red-800">{editCameraError}</p>}
+                    </section>
+                    <section aria-labelledby="edit-gps-title" className="space-y-3 border-t border-stone-200 pt-4">
+                        <div>
+                            <h3 id="edit-gps-title" className="font-bold text-forest">Titik GPS</h3>
+                            <p className="text-sm text-stone-600">Ambil titik baru saat berada di lahan. Titik lama tetap berlaku sampai titik baru berhasil didapat.</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div className="rounded-lg bg-stone-50 p-3"><span className="block text-stone-600">Lintang {editGps ? 'baru' : 'saat ini'}</span><strong className="break-all">{editGps?.latitude != null || editRecord?.latitude != null ? Number(editGps?.latitude ?? editRecord.latitude).toFixed(6) : 'Belum tersedia'}</strong></div>
+                            <div className="rounded-lg bg-stone-50 p-3"><span className="block text-stone-600">Bujur {editGps ? 'baru' : 'saat ini'}</span><strong className="break-all">{editGps?.longitude != null || editRecord?.longitude != null ? Number(editGps?.longitude ?? editRecord.longitude).toFixed(6) : 'Belum tersedia'}</strong></div>
+                            {editGps && <p role="status" className="col-span-2 text-sm text-stone-700">Titik baru siap disimpan. Akurasi ±{Math.round(Number(editGps.gps_accuracy_m))} meter.</p>}
+                        </div>
+                        {editGpsError && <p role="alert" className="text-sm font-medium text-red-800">{editGpsError}</p>}
+                        <button type="button" onClick={takeEditGps} disabled={editGpsStatus === 'loading'} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border border-forest px-4 font-semibold text-forest disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest"><BusyIndicator active={editGpsStatus === 'loading'} />{editGpsStatus === 'loading' ? 'Mencari titik GPS...' : editGps ? 'Ambil ulang titik GPS' : 'Ambil titik GPS baru'}</button>
+                    </section>
                     <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
-                        <button type="button" onClick={() => setEditRecord(null)} disabled={editSaving} className="min-h-12 rounded-lg border border-forest px-4 font-semibold text-forest disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">Batal</button>
-                        <button type="submit" disabled={editSaving} className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-forest px-4 font-semibold text-white disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest"><BusyIndicator active={editSaving} />{editSaving ? 'Menyimpan...' : 'Simpan perubahan'}</button>
+                        <button type="button" onClick={closeEdit} disabled={editSaving} className="min-h-12 rounded-lg border border-forest px-4 font-semibold text-forest disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">Batal</button>
+                        <button type="submit" disabled={editSaving || editCameraOpen || editCapturing || editGpsStatus === 'loading'} className="flex min-h-12 items-center justify-center gap-2 rounded-lg bg-forest px-4 font-semibold text-white disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest"><BusyIndicator active={editSaving} />{editSaving ? 'Menyimpan...' : 'Simpan perubahan'}</button>
                     </div>
                 </form>
             </Modal>
@@ -733,8 +961,8 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
                             <dl className="grid grid-cols-2 gap-3 text-sm">
                                 <div><dt className="text-stone-600">Luas</dt><dd className="font-semibold">{numberFormat.format(Number(selected.luas_garapan))} Ha</dd></div>
                                 <div><dt className="text-stone-600">Lama garap</dt><dd className="font-semibold">{selected.lama_menggarap} tahun</dd></div>
-                                <div><dt className="text-stone-600">Lintang</dt><dd className="break-all font-mono">{selected.latitude}</dd></div>
-                                <div><dt className="text-stone-600">Bujur</dt><dd className="break-all font-mono">{selected.longitude}</dd></div>
+                                <div><dt className="text-stone-600">Lintang</dt><dd className="break-all font-mono">{selected.latitude ?? 'Belum tersedia'}</dd></div>
+                                <div><dt className="text-stone-600">Bujur</dt><dd className="break-all font-mono">{selected.longitude ?? 'Belum tersedia'}</dd></div>
                                 {selected.utm_x !== null && selected.utm_x !== undefined && (
                                     <>
                                         <div><dt className="text-stone-600">UTM X</dt><dd className="break-all font-mono">{selected.utm_x} m</dd></div>

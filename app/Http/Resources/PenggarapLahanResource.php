@@ -21,15 +21,15 @@ class PenggarapLahanResource extends JsonResource
             'no_hp' => $this->no_hp,
             'luas_garapan' => (float) $this->luas_garapan,
             'lama_menggarap' => $this->lama_menggarap,
-            'latitude' => (float) $this->latitude,
-            'longitude' => (float) $this->longitude,
+            'latitude' => $this->latitude === null ? null : (float) $this->latitude,
+            'longitude' => $this->longitude === null ? null : (float) $this->longitude,
             'utm_x' => $this->utm_x,
             'utm_y' => $this->utm_y,
             'utm_epsg' => $this->utm_epsg,
             'gps_accuracy_m' => $this->gps_accuracy_m === null ? null : (float) $this->gps_accuracy_m,
             'captured_at' => $this->captured_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
-            'foto_url' => route('sensus.photo', $this->id, false),
+            'foto_url' => $this->foto_path === null ? null : route('sensus.photo', $this->id, false).'?v='.substr(hash('sha256', $this->foto_storage.':'.$this->foto_path), 0, 12),
         ];
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rules\File;
 
 class UpdateSensusRequest extends FormRequest
 {
@@ -21,6 +22,11 @@ class UpdateSensusRequest extends FormRequest
             'no_hp' => ['nullable', 'string', 'max:20'],
             'luas_garapan' => ['required', 'numeric', 'gt:0', 'max:999999.99'],
             'lama_menggarap' => ['required', 'integer', 'min:0', 'max:150'],
+            'foto' => ['sometimes', File::types(['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'])->max('10mb')],
+            'latitude' => ['required_with:longitude', 'numeric', 'between:-80,84'],
+            'longitude' => ['required_with:latitude', 'numeric', 'between:-180,180'],
+            'gps_accuracy_m' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'captured_at' => ['sometimes', 'date'],
         ];
     }
 }
