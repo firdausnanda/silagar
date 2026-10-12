@@ -7,25 +7,12 @@ import SensusPhoto from '../Components/SensusPhoto';
 import { captureCameraFrame } from '../Components/cameraFrame';
 import { getGpsErrorMessage, requestFreshGpsPosition } from '../Components/gpsLocation';
 import { rememberSavedSensusNotice } from '../Offline/sensusFeedback';
+import { newSensusDraft, restoredSensusStep } from '../Offline/sensusFlow';
 import { validOrNewClientUuid } from '../Offline/clientUuid';
 import { clearDraft, getDraft, getEntry, saveDraft, saveEntry } from '../Offline/sensusStore';
 import { syncForOwner } from '../Offline/sensusSync';
 
-const emptyDraft = {
-    step: 1,
-    flow_version: 2,
-    client_uuid: null,
-    foto: null,
-    latitude: null,
-    longitude: null,
-    gps_accuracy_m: null,
-    captured_at: null,
-    nama: '',
-    nama_kth: '',
-    no_hp: '',
-    luas_garapan: '',
-    lama_menggarap: '',
-};
+const emptyDraft = newSensusDraft();
 
 export default function InputSensus() {
     const ownerId = usePage().props.auth.user.id;
@@ -86,8 +73,8 @@ export default function InputSensus() {
                     const initial = {
                         ...emptyDraft,
                         ...saved,
-                        step: !editUuid && saved?.flow_version === 2 ? saved.step ?? 1 : 1,
-                        flow_version: 2,
+                        step: restoredSensusStep(saved, Boolean(editUuid)),
+                        flow_version: 3,
                     };
                     draftRef.current = initial;
                     setDraft(initial);
@@ -243,13 +230,18 @@ export default function InputSensus() {
         }
     };
 
+    const getValidatedKthName = () => {
+        const namaKth = String(draft.nama_kth ?? '').trim();
+        return namaKth.length <= 100 ? namaKth : null;
+    };
+
     const getValidatedIdentityData = () => {
         const nama = String(draft.nama ?? '').trim();
-        const namaKth = String(draft.nama_kth ?? '').trim();
+        const namaKth = getValidatedKthName();
         const noHp = String(draft.no_hp ?? '').trim();
         const luas = Number(draft.luas_garapan);
         const lama = Number(draft.lama_menggarap);
-        if (!nama || nama.length > 100 || namaKth.length > 100 || noHp.length > 20
+        if (!nama || nama.length > 100 || namaKth === null || noHp.length > 20
             || !Number.isFinite(luas) || luas <= 0 || luas > 999999.99
             || !/^\d+(\.\d{1,2})?$/.test(String(draft.luas_garapan))
             || !Number.isInteger(lama) || lama < 0 || lama > 150) {
@@ -259,15 +251,15 @@ export default function InputSensus() {
         return { nama, nama_kth: namaKth, no_hp: noHp, luas_garapan: String(luas), lama_menggarap: String(lama) };
     };
 
-    const goToStepTwo = async (event) => {
+    const goToIdentity = async (event) => {
         event.preventDefault();
-        const identity = getValidatedIdentityData();
-        if (!identity) {
-            setFormError('Periksa nama penggarap, Nama KTH, luas, lama garap, dan nomor kontak.');
+        const namaKth = getValidatedKthName();
+        if (namaKth === null) {
+            setFormError('Nama KTH maksimal 100 karakter.');
             return;
         }
         try {
-            persist({ ...identity, step: 2 });
+            persist({ nama_kth: namaKth, step: 2 });
             await pendingSave.current;
             setFormError('');
         } catch (error) {
@@ -277,14 +269,34 @@ export default function InputSensus() {
         }
     };
 
-    const goBackToIdentity = () => {
+    const goToPhoto = async (event) => {
+        event.preventDefault();
+        const identity = getValidatedIdentityData();
+        if (!identity) {
+            setFormError('Periksa nama penggarap, luas, lama garap, dan nomor kontak.');
+            return;
+        }
+        try {
+            persist({ ...identity, step: 3 });
+            await pendingSave.current;
+            setFormError('');
+        } catch (error) {
+            draftRef.current = { ...draftRef.current, step: 2 };
+            setDraft(draftRef.current);
+            setStorageError('Data belum dapat disimpan di perangkat. Jangan lanjutkan sebelum ruang penyimpanan tersedia.');
+        }
+    };
+
+    const goBackOneStep = () => {
         if (savedLocally) {
             return;
         }
 
         closeCamera();
+        gpsRequestId.current += 1;
+        setGpsStatus(draft.latitude != null && draft.longitude != null ? 'ready' : 'idle');
         setFormError('');
-        persist({ step: 1 });
+        persist({ step: Math.max(1, draft.step - 1) });
     };
 
     const save = async (event) => {
@@ -294,7 +306,7 @@ export default function InputSensus() {
         }
         const identity = getValidatedIdentityData();
         if (!identity) {
-            const message = 'Periksa nama penggarap, Nama KTH, luas, lama garap, dan nomor kontak.';
+            const message = 'Periksa Nama KTH, nama penggarap, luas, lama garap, dan nomor kontak.';
             setFormError(message);
             await Swal.fire({ icon: 'error', title: 'Data belum valid', text: message, confirmButtonText: 'Periksa lagi', confirmButtonColor: '#143E2C' });
             return;
@@ -336,9 +348,9 @@ export default function InputSensus() {
             setSavedLocally(true);
             rememberSavedSensusNotice(ownerId, clientUuid);
             try {
-                await clearDraft(ownerId);
+                await saveDraft(ownerId, newSensusDraft(identity.nama_kth));
             } catch (error) {
-                setStorageError('Entri tersimpan, tetapi draf lama belum dibersihkan.');
+                setStorageError('Entri tersimpan, tetapi Nama KTH belum tersimpan untuk bidang berikutnya.');
             }
             syncForOwner(ownerId).catch(() => {});
             await Swal.fire({
@@ -398,13 +410,13 @@ export default function InputSensus() {
                                 <BackIcon />
                             </Link>
                         ) : (
-                            <button type="button" onClick={goBackToIdentity} disabled={processing || savedLocally} className="rounded-lg p-2 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white" aria-label="Kembali ke langkah pertama">
+                            <button type="button" onClick={goBackOneStep} disabled={processing || savedLocally} className="rounded-lg p-2 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white" aria-label="Kembali ke langkah sebelumnya">
                                 <BackIcon />
                             </button>
                         )}
                         <div>
-                            <p className="text-xs font-semibold text-emerald-100">Langkah {draft.step} dari 2</p>
-                            <h1 ref={stepTitleRef} tabIndex={-1} className="text-lg font-bold focus:outline-none">{draft.step === 1 ? 'Data penggarap' : 'Foto dan titik lahan'}</h1>
+                            <p className="text-xs font-semibold text-emerald-100">Langkah {draft.step} dari 3</p>
+                            <h1 ref={stepTitleRef} tabIndex={-1} className="text-lg font-bold focus:outline-none">{['Nama KTH', 'Identitas penggarap', 'Foto dan titik GPS'][draft.step - 1]}</h1>
                         </div>
                     </div>
                 </header>
@@ -412,10 +424,10 @@ export default function InputSensus() {
                 <main className="flex-1 space-y-4 p-4 pb-28">
                     <div className="rounded-xl bg-white p-4 shadow-sm">
                         <div className="mb-3 flex items-center justify-between text-sm font-semibold">
-                            <span>Pencatatan satu bidang</span><span>{draft.step}/2</span>
+                            <span>Pencatatan satu bidang</span><span>{draft.step}/3</span>
                         </div>
                         <div className="h-2 overflow-hidden rounded-full bg-stone-200">
-                            <div className={`h-full bg-forest ${draft.step === 1 ? 'w-1/2' : 'w-full'}`} />
+                            <div className={`h-full bg-forest ${draft.step === 1 ? 'w-1/3' : draft.step === 2 ? 'w-2/3' : 'w-full'}`} />
                         </div>
                         <p className="mt-3 text-sm text-stone-700">Data disimpan di perangkat lebih dulu dan dikirim otomatis saat aplikasi aktif serta koneksi tersedia.</p>
                     </div>
@@ -425,7 +437,7 @@ export default function InputSensus() {
                     {savedLocally && <p role="status" className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm font-medium text-forest">Sensus tersimpan di perangkat. Status pengiriman terlihat di daftar bidang.</p>}
                     {navigationFailed && <a href={route('dashboard')} className="inline-flex min-h-11 items-center rounded-lg border border-forest px-4 font-semibold text-forest focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">Buka dashboard</a>}
 
-                    {draft.step === 2 ? (
+                    {draft.step === 3 ? (
                         <form id="sensus-form" onSubmit={save} className="step-enter space-y-4">
                             <section className="rounded-xl bg-white p-4 shadow-sm">
                                 <div className="flex items-start justify-between gap-3">
@@ -434,7 +446,7 @@ export default function InputSensus() {
                                         <p className="mt-1 text-sm text-stone-700">{draft.nama} · {draft.luas_garapan} Ha · {draft.lama_menggarap} tahun</p>
                                         {draft.nama_kth && <p className="mt-1 text-sm text-stone-700">KTH: {draft.nama_kth}</p>}
                                     </div>
-                                    <button type="button" onClick={goBackToIdentity} disabled={processing || savedLocally} className="min-h-10 shrink-0 text-sm font-semibold text-forest underline disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest">Ubah</button>
+                                    <button type="button" onClick={goBackOneStep} disabled={processing || savedLocally} className="min-h-10 shrink-0 text-sm font-semibold text-forest underline disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest">Ubah</button>
                                 </div>
                             </section>
                             <section className="space-y-3 rounded-xl bg-white p-4 shadow-sm" aria-labelledby="foto-title">
@@ -490,8 +502,12 @@ export default function InputSensus() {
                                 </button>
                             </section>
                         </form>
-                    ) : (
-                        <form id="identity-form" onSubmit={goToStepTwo} className="step-enter space-y-4">
+                    ) : draft.step === 2 ? (
+                        <form id="identity-form" onSubmit={goToPhoto} className="step-enter space-y-4">
+                            <div className="rounded-xl border border-stone-200 bg-white p-4 text-sm">
+                                <p className="font-semibold text-forest">Nama KTH</p>
+                                <p className="mt-1 break-words text-stone-700">{draft.nama_kth || 'Belum diisi'}</p>
+                            </div>
                             <section className="space-y-4 rounded-xl bg-white p-4 shadow-sm" aria-labelledby="identitas-title">
                                 <div>
                                     <h2 id="identitas-title" className="font-bold text-forest">Identitas penggarap</h2>
@@ -500,10 +516,7 @@ export default function InputSensus() {
                                 <Field label="Nama lengkap penggarap" id="nama" required>
                                     <input id="nama" type="text" maxLength="100" required value={draft.nama} onChange={(event) => persist({ nama: event.target.value })} className="field-input" placeholder="Nama penggarap" />
                                 </Field>
-                                <Field label="Nama KTH (opsional)" id="nama_kth">
-                                    <input id="nama_kth" type="text" maxLength="100" value={draft.nama_kth ?? ''} onChange={(event) => persist({ nama_kth: event.target.value })} className="field-input" placeholder="Nama kelompok tani hutan" />
-                                </Field>
-                                <Field label="Nomor HP / WhatsApp (opsional)" id="no_hp">
+                                <Field label="Nomor HP / WhatsApp" id="no_hp">
                                     <input id="no_hp" type="tel" maxLength="20" value={draft.no_hp ?? ''} onChange={(event) => persist({ no_hp: event.target.value })} className="field-input" placeholder="08..." />
                                 </Field>
                                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -516,17 +529,34 @@ export default function InputSensus() {
                                 </div>
                             </section>
                         </form>
+                    ) : (
+                        <form id="kth-form" onSubmit={goToIdentity} className="step-enter space-y-4">
+                            <section className="space-y-4 rounded-xl bg-white p-4 shadow-sm" aria-labelledby="kth-title">
+                                <div>
+                                    <h2 id="kth-title" className="font-bold text-forest">Nama KTH</h2>
+                                    <p className="mt-1 text-sm text-stone-700">Isi nama Kelompok Tani Hutan yang terkait dengan bidang ini. Anda dapat melanjutkan jika belum mengetahuinya.</p>
+                                </div>
+                                <Field label="Nama KTH" id="nama_kth">
+                                    <input id="nama_kth" type="text" maxLength="100" value={draft.nama_kth ?? ''} onChange={(event) => persist({ nama_kth: event.target.value })} className="field-input" placeholder="Contoh: KTH Rimba Jaya" />
+                                </Field>
+                            </section>
+                        </form>
                     )}
                 </main>
 
                 <div className="sticky bottom-0 z-10 border-t border-stone-200 bg-white p-4 shadow-lg">
                     {draft.step === 1 ? (
-                        <button type="submit" form="identity-form" className="min-h-12 w-full rounded-xl bg-forest px-4 font-bold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">
-                            Lanjut ke foto dan koordinat
+                        <button type="submit" form="kth-form" className="min-h-12 w-full rounded-xl bg-forest px-4 font-bold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">
+                            Lanjut ke identitas penggarap
                         </button>
+                    ) : draft.step === 2 ? (
+                        <div className="flex gap-3">
+                            <button type="button" onClick={goBackOneStep} disabled={processing || savedLocally} className="min-h-12 rounded-xl border border-forest px-4 font-semibold text-forest disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">Kembali</button>
+                            <button type="submit" form="identity-form" className="min-h-12 flex-1 rounded-xl bg-forest px-4 font-bold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">Lanjut ke foto dan titik GPS</button>
+                        </div>
                     ) : (
                         <div className="flex gap-3">
-                            <button type="button" onClick={goBackToIdentity} disabled={processing || savedLocally} className="min-h-12 rounded-xl border border-forest px-4 font-semibold text-forest disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">Kembali</button>
+                            <button type="button" onClick={goBackOneStep} disabled={processing || savedLocally} className="min-h-12 rounded-xl border border-forest px-4 font-semibold text-forest disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">Kembali</button>
                             <button type="submit" form="sensus-form" disabled={processing || savedLocally || cameraOpen || gpsStatus === 'loading'} aria-busy={processing && !savedLocally} className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-forest px-4 font-bold text-white disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">
                                 <BusyIndicator active={processing && !savedLocally} />
                                 {savedLocally ? 'Tersimpan di perangkat' : processing ? 'Menyimpan...' : 'Simpan sensus di perangkat'}
