@@ -185,7 +185,7 @@ export default function SensusExportModal({ show, onClose, pendingCount, online 
                 <fieldset className="space-y-3">
                     <legend className="font-bold text-forest">Pilih bidang</legend>
                     <p className="text-sm text-stone-700">Hanya bidang milik akun Anda yang tersedia untuk ekspor.</p>
-                    <label htmlFor="export-search" className="block text-sm font-semibold">Cari nama, nomor HP, atau koordinat</label>
+                    <label htmlFor="export-search" className="block text-sm font-semibold">Cari penggarap, KTH, nomor HP, atau koordinat</label>
                     <input id="export-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} className="min-h-11 w-full rounded-lg border-stone-500 focus:border-forest focus:ring-forest" />
                     <div className="grid gap-3 sm:grid-cols-2">
                         <div>
