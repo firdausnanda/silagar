@@ -82,6 +82,7 @@ class AdminAccessTest extends TestCase
 
         Storage::fake('local');
         Storage::disk('local')->put('sensus/test.jpg', 'foto contoh');
+        Storage::disk('local')->assertExists('sensus/test.jpg');
         $this->get(route('admin.sensus.photo', $first))->assertOk();
         $this->actingAs($firstPetugas)->get(route('admin.sensus.photo', $first))->assertForbidden();
     }
