@@ -70,7 +70,19 @@ export default function Dashboard({ records, summary, recorders, filters }) {
                                         <span className="block whitespace-nowrap font-semibold text-forest">{numberFormat.format(record.luas_garapan)} Ha</span>
                                         <span className="mt-1 block whitespace-nowrap text-xs text-stone-600">{record.lama_menggarap} tahun menggarap</span>
                                     </td>
-                                    <td className="py-3 pr-4 font-mono text-xs">{record.latitude === null || record.longitude === null ? 'Belum tersedia' : `${record.latitude.toFixed(6)}, ${record.longitude.toFixed(6)}`}</td>
+                                    <td className="py-3 pr-4 font-mono text-xs">
+                                        {record.latitude === null || record.longitude === null ? 'Belum tersedia' : (
+                                            <a
+                                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${record.latitude},${record.longitude}`)}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                aria-label={`Buka koordinat ${record.latitude.toFixed(6)}, ${record.longitude.toFixed(6)} di Google Maps`}
+                                                className="inline-block whitespace-nowrap font-semibold text-forest underline decoration-emerald-300 underline-offset-2 hover:text-emerald-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest"
+                                            >
+                                                {record.latitude.toFixed(6)}, {record.longitude.toFixed(6)}
+                                            </a>
+                                        )}
+                                    </td>
                                     <td className="py-3">{record.captured_at ? `${dateFormat.format(new Date(record.captured_at))} WIB` : 'Belum tersedia'}</td>
                                 </tr>
                             ))}
