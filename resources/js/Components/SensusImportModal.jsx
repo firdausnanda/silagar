@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { useRef, useState } from 'react';
+import Swal from 'sweetalert2';
 import BusyIndicator from './BusyIndicator';
 import Modal from './Modal';
 
@@ -44,10 +45,18 @@ export default function SensusImportModal({ show, onClose, onImported }) {
             }
             onClose();
         } catch (requestError) {
-            setError(requestError.response?.data?.errors?.file?.[0]
+            const message = requestError.response?.data?.errors?.file?.[0]
                 ?? (requestError.response?.status === 401 || requestError.response?.status === 419
                     ? 'Sesi berakhir. Masuk kembali lalu coba impor.'
-                    : 'Impor belum berhasil. Periksa file dan koneksi, lalu coba lagi.'));
+                    : 'Impor belum berhasil. Periksa file dan koneksi, lalu coba lagi.');
+            setError(message);
+            await Swal.fire({
+                icon: 'error',
+                title: 'Impor gagal',
+                text: message,
+                confirmButtonText: 'Periksa lagi',
+                confirmButtonColor: '#143E2C',
+            });
         } finally {
             setImporting(false);
         }
@@ -63,7 +72,7 @@ export default function SensusImportModal({ show, onClose, onImported }) {
                 <div className="rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm text-stone-700">
                     <p className="font-semibold text-forest">Kolom yang diperlukan</p>
                     <p className="mt-1">Nama penggarap · Nomor HP · Luas garapan (Ha) · Lama menggarap (tahun)</p>
-                    <p className="mt-1 text-xs">Nama KTH, Kabupaten/Kota, dan Nama Penunjuk adalah kolom opsional.</p>
+                    <p className="mt-1 text-xs">Nama KTH, Kabupaten/Kota, dan Nama Penunjuk adalah kolom opsional. Jika diisi, Kabupaten/Kota harus sesuai daftar Jawa Timur pada formulir.</p>
                     <a href={route('sensus.import.template')} className="mt-2 inline-block font-semibold text-forest underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest">Unduh template Excel</a>
                 </div>
                 <div>

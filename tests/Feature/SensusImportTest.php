@@ -95,6 +95,23 @@ class SensusImportTest extends TestCase
         $this->assertDatabaseCount('penggarap_lahans', 0);
     }
 
+    public function test_import_rejects_kabupaten_kota_outside_jawa_timur_without_saving_any_rows(): void
+    {
+        $owner = User::factory()->create();
+        $file = $this->excelFile([
+            ['Siti Aminah', '081234567890', 0.75, 8, 'KTH Tunas Hutan', 'Pak Hadi', 'Kabupaten Malang'],
+            ['Budi', '081299999999', 1.25, 3, '', '', 'Kabupaten Bogor'],
+        ]);
+
+        $this->actingAs($owner)->post(route('sensus.import'), ['file' => $file], [
+            'Accept' => 'application/json',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('file')
+            ->assertJsonPath('errors.file.0', 'Baris 3: Kabupaten/Kota harus dipilih dari daftar kabupaten/kota Jawa Timur.');
+
+        $this->assertDatabaseCount('penggarap_lahans', 0);
+    }
+
     public function test_numeric_phone_number_is_rejected_to_preserve_leading_zero(): void
     {
         $owner = User::factory()->create();

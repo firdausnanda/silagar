@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
@@ -66,6 +67,12 @@ class SensusImportController extends Controller
 
     public function store(ImportSensusRequest $request): JsonResponse
     {
+        $kabupatenKotaJawaTimur = json_decode(
+            file_get_contents(resource_path('js/kabupatenKotaJawaTimur.json')),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
         $path = $request->file('file')->getPathname();
         $reader = new XlsxReader;
         $reader->setReadDataOnly(true);
@@ -138,15 +145,21 @@ class SensusImportController extends Controller
                     continue;
                 }
 
+                if (($values['kabupaten_kota'] ?? '') === '') {
+                    $values['kabupaten_kota'] = null;
+                }
+
                 $validator = Validator::make($values, [
                     'nama' => ['required', 'string', 'max:100'],
                     'nama_kth' => ['nullable', 'string', 'max:100'],
                     'nama_penunjuk' => ['nullable', 'string', 'max:100'],
-                    'kabupaten_kota' => ['nullable', 'string', 'max:100'],
+                    'kabupaten_kota' => ['nullable', 'string', Rule::in($kabupatenKotaJawaTimur)],
                     'no_hp' => ['nullable', 'string', 'max:20'],
                     'luas_garapan' => ['required', 'numeric', 'gt:0', 'max:999999.99'],
                     'lama_menggarap' => ['required', 'integer', 'min:0', 'max:150'],
-                ], [], [...self::HEADERS, ...self::OPTIONAL_HEADERS]);
+                ], [
+                    'kabupaten_kota.in' => 'Kabupaten/Kota harus dipilih dari daftar kabupaten/kota Jawa Timur.',
+                ], [...self::HEADERS, ...self::OPTIONAL_HEADERS]);
                 if ($validator->fails()) {
                     throw ValidationException::withMessages([
                         'file' => "Baris {$rowNumber}: ".$validator->errors()->first(),
