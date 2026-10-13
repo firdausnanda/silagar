@@ -44,6 +44,8 @@ class DashboardController extends Controller
                 $term = '%'.$search.'%';
                 $query->where('nama', 'like', $term)
                     ->orWhere('nama_kth', 'like', $term)
+                    ->orWhere('nama_penunjuk', 'like', $term)
+                    ->orWhere('kabupaten_kota', 'like', $term)
                     ->orWhere('no_hp', 'like', $term)
                     ->orWhere('latitude', 'like', $term)
                     ->orWhere('longitude', 'like', $term);

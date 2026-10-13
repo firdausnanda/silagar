@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 import BusyIndicator from '../Components/BusyIndicator';
+import SearchableSelect from '../Components/SearchableSelect';
 import SensusPhoto from '../Components/SensusPhoto';
 import { captureCameraFrame } from '../Components/cameraFrame';
 import { getGpsErrorMessage, requestFreshGpsPosition } from '../Components/gpsLocation';
@@ -11,6 +12,7 @@ import { newSensusDraft, restoredSensusStep } from '../Offline/sensusFlow';
 import { validOrNewClientUuid } from '../Offline/clientUuid';
 import { clearDraft, getDraft, getEntry, saveDraft, saveEntry } from '../Offline/sensusStore';
 import { syncForOwner } from '../Offline/sensusSync';
+import { kabupatenKotaJawaTimur } from '../kabupatenKotaJawaTimur';
 
 const emptyDraft = newSensusDraft();
 
@@ -230,36 +232,43 @@ export default function InputSensus() {
         }
     };
 
-    const getValidatedKthName = () => {
+    const getValidatedFirstStep = () => {
         const namaKth = String(draft.nama_kth ?? '').trim();
-        return namaKth.length <= 100 ? namaKth : null;
+        const namaPenunjuk = String(draft.nama_penunjuk ?? '').trim();
+        const kabupatenKota = String(draft.kabupaten_kota ?? '').trim();
+        if (namaKth.length > 100 || namaPenunjuk.length > 100
+            || (kabupatenKota && !kabupatenKotaJawaTimur.includes(kabupatenKota))) {
+            return null;
+        }
+
+        return { nama_kth: namaKth, nama_penunjuk: namaPenunjuk, kabupaten_kota: kabupatenKota };
     };
 
     const getValidatedIdentityData = () => {
         const nama = String(draft.nama ?? '').trim();
-        const namaKth = getValidatedKthName();
+        const firstStep = getValidatedFirstStep();
         const noHp = String(draft.no_hp ?? '').trim();
         const luas = Number(draft.luas_garapan);
         const lama = Number(draft.lama_menggarap);
-        if (!nama || nama.length > 100 || namaKth === null || noHp.length > 20
+        if (!nama || nama.length > 100 || firstStep === null || noHp.length > 20
             || !Number.isFinite(luas) || luas <= 0 || luas > 999999.99
             || !/^\d+(\.\d{1,2})?$/.test(String(draft.luas_garapan))
             || !Number.isInteger(lama) || lama < 0 || lama > 150) {
             return null;
         }
 
-        return { nama, nama_kth: namaKth, no_hp: noHp, luas_garapan: String(luas), lama_menggarap: String(lama) };
+        return { nama, ...firstStep, no_hp: noHp, luas_garapan: String(luas), lama_menggarap: String(lama) };
     };
 
     const goToIdentity = async (event) => {
         event.preventDefault();
-        const namaKth = getValidatedKthName();
-        if (namaKth === null) {
-            setFormError('Nama KTH maksimal 100 karakter.');
+        const firstStep = getValidatedFirstStep();
+        if (firstStep === null) {
+            setFormError('Periksa Nama KTH, Nama Penunjuk, dan Kabupaten/Kota.');
             return;
         }
         try {
-            persist({ nama_kth: namaKth, step: 2 });
+            persist({ ...firstStep, step: 2 });
             await pendingSave.current;
             setFormError('');
         } catch (error) {
@@ -306,7 +315,7 @@ export default function InputSensus() {
         }
         const identity = getValidatedIdentityData();
         if (!identity) {
-            const message = 'Periksa Nama KTH, nama penggarap, luas, lama garap, dan nomor kontak.';
+            const message = 'Periksa Nama KTH, Nama Penunjuk, Kabupaten/Kota, nama penggarap, luas, lama garap, dan nomor kontak.';
             setFormError(message);
             await Swal.fire({ icon: 'error', title: 'Data belum valid', text: message, confirmButtonText: 'Periksa lagi', confirmButtonColor: '#143E2C' });
             return;
@@ -416,7 +425,7 @@ export default function InputSensus() {
                         )}
                         <div>
                             <p className="text-xs font-semibold text-emerald-100">Langkah {draft.step} dari 3</p>
-                            <h1 ref={stepTitleRef} tabIndex={-1} className="text-lg font-bold focus:outline-none">{['Nama KTH', 'Identitas penggarap', 'Foto dan titik GPS'][draft.step - 1]}</h1>
+                            <h1 ref={stepTitleRef} tabIndex={-1} className="text-lg font-bold focus:outline-none">{['KTH dan lokasi', 'Identitas penggarap', 'Foto dan titik GPS'][draft.step - 1]}</h1>
                         </div>
                     </div>
                 </header>
@@ -445,6 +454,8 @@ export default function InputSensus() {
                                         <h2 className="font-bold text-forest">Identitas penggarap</h2>
                                         <p className="mt-1 text-sm text-stone-700">{draft.nama} · {draft.luas_garapan} Ha · {draft.lama_menggarap} tahun</p>
                                         {draft.nama_kth && <p className="mt-1 text-sm text-stone-700">KTH: {draft.nama_kth}</p>}
+                                        {draft.nama_penunjuk && <p className="mt-1 text-sm text-stone-700">Penunjuk: {draft.nama_penunjuk}</p>}
+                                        {draft.kabupaten_kota && <p className="mt-1 text-sm text-stone-700">{draft.kabupaten_kota}</p>}
                                     </div>
                                     <button type="button" onClick={goBackOneStep} disabled={processing || savedLocally} className="min-h-10 shrink-0 text-sm font-semibold text-forest underline disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest">Ubah</button>
                                 </div>
@@ -505,8 +516,10 @@ export default function InputSensus() {
                     ) : draft.step === 2 ? (
                         <form id="identity-form" onSubmit={goToPhoto} className="step-enter space-y-4">
                             <div className="rounded-xl border border-stone-200 bg-white p-4 text-sm">
-                                <p className="font-semibold text-forest">Nama KTH</p>
-                                <p className="mt-1 break-words text-stone-700">{draft.nama_kth || 'Belum diisi'}</p>
+                                <p className="font-semibold text-forest">KTH dan lokasi</p>
+                                <p className="mt-1 break-words text-stone-700">KTH: {draft.nama_kth || 'Belum diisi'}</p>
+                                {draft.nama_penunjuk && <p className="mt-1 break-words text-stone-700">Penunjuk: {draft.nama_penunjuk}</p>}
+                                {draft.kabupaten_kota && <p className="mt-1 break-words text-stone-700">{draft.kabupaten_kota}</p>}
                             </div>
                             <section className="space-y-4 rounded-xl bg-white p-4 shadow-sm" aria-labelledby="identitas-title">
                                 <div>
@@ -533,11 +546,17 @@ export default function InputSensus() {
                         <form id="kth-form" onSubmit={goToIdentity} className="step-enter space-y-4">
                             <section className="space-y-4 rounded-xl bg-white p-4 shadow-sm" aria-labelledby="kth-title">
                                 <div>
-                                    <h2 id="kth-title" className="font-bold text-forest">Nama KTH</h2>
-                                    <p className="mt-1 text-sm text-stone-700">Isi nama Kelompok Tani Hutan yang terkait dengan bidang ini. Anda dapat melanjutkan jika belum mengetahuinya.</p>
+                                    <h2 id="kth-title" className="font-bold text-forest">KTH dan lokasi</h2>
+                                    <p className="mt-1 text-sm text-stone-700">Isi data yang diketahui untuk bidang ini. Semua kolom di langkah ini opsional.</p>
                                 </div>
                                 <Field label="Nama KTH" id="nama_kth">
                                     <input id="nama_kth" type="text" maxLength="100" value={draft.nama_kth ?? ''} onChange={(event) => persist({ nama_kth: event.target.value })} className="field-input" placeholder="Contoh: KTH Rimba Jaya" />
+                                </Field>
+                                <Field label="Nama Penunjuk" id="nama_penunjuk">
+                                    <input id="nama_penunjuk" type="text" maxLength="100" value={draft.nama_penunjuk ?? ''} onChange={(event) => persist({ nama_penunjuk: event.target.value })} className="field-input" placeholder="Nama orang yang menunjukkan bidang" />
+                                </Field>
+                                <Field label="Kabupaten/Kota" id="kabupaten_kota">
+                                    <SearchableSelect id="kabupaten_kota" value={draft.kabupaten_kota ?? ''} onChange={(value) => persist({ kabupaten_kota: value })} options={kabupatenKotaJawaTimur.map((wilayah) => ({ value: wilayah, label: wilayah }))} placeholder="Cari kabupaten/kota di Jawa Timur" />
                                 </Field>
                             </section>
                         </form>

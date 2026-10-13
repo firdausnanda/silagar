@@ -19,6 +19,8 @@ class PenggarapLahanResource extends JsonResource
             'client_uuid' => $this->client_uuid,
             'nama' => $this->nama,
             'nama_kth' => $this->nama_kth,
+            'nama_penunjuk' => $this->nama_penunjuk,
+            'kabupaten_kota' => $this->kabupaten_kota,
             'no_hp' => $this->no_hp,
             'luas_garapan' => (float) $this->luas_garapan,
             'lama_menggarap' => $this->lama_menggarap,

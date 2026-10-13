@@ -28,7 +28,7 @@ class ExportSensusRequest extends FormRequest
             'ids.*' => ['required', 'integer', 'min:1', 'distinct'],
             'columns' => ['required', 'array', 'min:1'],
             'columns.*' => ['required', 'string', 'distinct', Rule::in([
-                'id', 'nama', 'nama_kth', 'no_hp', 'luas_garapan', 'lama_menggarap',
+                'id', 'nama', 'nama_kth', 'nama_penunjuk', 'kabupaten_kota', 'no_hp', 'luas_garapan', 'lama_menggarap',
                 'latitude', 'longitude', 'utm_x', 'utm_y', 'utm_epsg',
                 'gps_accuracy_m', 'captured_at', 'updated_at', 'creator_name',
             ])],

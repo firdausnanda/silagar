@@ -10,6 +10,8 @@ export function newSensusDraft(namaKth = '') {
         captured_at: null,
         nama: '',
         nama_kth: namaKth,
+        nama_penunjuk: '',
+        kabupaten_kota: '',
         no_hp: '',
         luas_garapan: '',
         lama_menggarap: '',

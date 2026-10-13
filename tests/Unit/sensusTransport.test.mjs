@@ -14,6 +14,7 @@ test('synced bidang edit is sent as PATCH to the existing record without a photo
     const entry = {
         operation: 'update', server_id: 7, nama: 'Siti Rahma',
         nama_kth: 'KTH Rimba Jaya',
+        nama_penunjuk: 'Pak Hadi', kabupaten_kota: 'Kabupaten Malang',
         no_hp: null, luas_garapan: '1.25', lama_menggarap: '9', foto: null,
     };
 
@@ -21,7 +22,7 @@ test('synced bidang edit is sent as PATCH to the existing record without a photo
 
     assert.equal(request.url, '/sensus.update/7');
     assert.deepEqual(request.data, {
-        nama: 'Siti Rahma', nama_kth: 'KTH Rimba Jaya', no_hp: null, luas_garapan: '1.25', lama_menggarap: '9',
+        nama: 'Siti Rahma', nama_kth: 'KTH Rimba Jaya', nama_penunjuk: 'Pak Hadi', kabupaten_kota: 'Kabupaten Malang', no_hp: null, luas_garapan: '1.25', lama_menggarap: '9',
     });
     assert.deepEqual(result, { id: 7, nama: 'Siti Rahma' });
 });
@@ -91,6 +92,7 @@ test('new bidang still sends the stored photo and UUID as POST', async () => {
     const entry = {
         operation: 'create', client_uuid: 'abc', nama: 'Budi',
         nama_kth: 'KTH Tunas Hutan',
+        nama_penunjuk: 'Bu Rina', kabupaten_kota: 'Kota Batu',
         no_hp: null, luas_garapan: '1', lama_menggarap: '2',
         latitude: -7, longitude: 112, gps_accuracy_m: 5,
         captured_at: '2026-10-08T09:15:00Z',
@@ -108,6 +110,8 @@ test('new bidang still sends the stored photo and UUID as POST', async () => {
     assert.equal(request.url, '/sensus.store');
     assert.equal(request.data.get('client_uuid'), 'abc');
     assert.equal(request.data.get('nama_kth'), 'KTH Tunas Hutan');
+    assert.equal(request.data.get('nama_penunjuk'), 'Bu Rina');
+    assert.equal(request.data.get('kabupaten_kota'), 'Kota Batu');
     const uploadedPhoto = request.data.get('foto');
     assert.equal(uploadedPhoto.name, 'lahan.jpg');
     assert.equal(await uploadedPhoto.text(), 'gambar');

@@ -11,7 +11,7 @@ class SensusExportChoicesController extends Controller
     public function __invoke(Request $request): JsonResponse
     {
         $records = PenggarapLahan::query()
-            ->select(['id', 'nama', 'nama_kth', 'no_hp', 'latitude', 'longitude', 'captured_at', 'created_by'])
+            ->select(['id', 'nama', 'nama_kth', 'nama_penunjuk', 'kabupaten_kota', 'no_hp', 'latitude', 'longitude', 'captured_at', 'created_by'])
             ->where('created_by', $request->user()->id)
             ->with('creator:id,name')
             ->orderByDesc('captured_at')
@@ -21,6 +21,8 @@ class SensusExportChoicesController extends Controller
                 'id' => $record->id,
                 'nama' => $record->nama,
                 'nama_kth' => $record->nama_kth,
+                'nama_penunjuk' => $record->nama_penunjuk,
+                'kabupaten_kota' => $record->kabupaten_kota,
                 'no_hp' => $record->no_hp,
                 'latitude' => $record->latitude === null ? null : (float) $record->latitude,
                 'longitude' => $record->longitude === null ? null : (float) $record->longitude,

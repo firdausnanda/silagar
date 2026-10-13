@@ -14,13 +14,15 @@ test('export list excludes pending records and filters capture dates in Jakarta'
 
 test('export search matches name phone and coordinates', () => {
     const records = [
-        { id: 1, nama: 'Siti Aminah', no_hp: '08123', latitude: -7.2, longitude: 112.7, status: 'synced' },
+        { id: 1, nama: 'Siti Aminah', nama_penunjuk: 'Pak Hadi', kabupaten_kota: 'Kabupaten Malang', no_hp: '08123', latitude: -7.2, longitude: 112.7, status: 'synced' },
         { id: 2, nama: 'Budi', no_hp: '08999', latitude: -6.1, longitude: 110.2, status: 'synced' },
     ];
 
     assert.deepEqual(filterExportRecords(records, { search: '  AMINAH ' }).map((record) => record.id), [1]);
     assert.deepEqual(filterExportRecords(records, { search: '08999' }).map((record) => record.id), [2]);
     assert.deepEqual(filterExportRecords(records, { search: '112.7' }).map((record) => record.id), [1]);
+    assert.deepEqual(filterExportRecords(records, { search: 'Pak Hadi' }).map((record) => record.id), [1]);
+    assert.deepEqual(filterExportRecords(records, { search: 'Kabupaten Malang' }).map((record) => record.id), [1]);
 });
 
 test('recorder filter offers my records, one other recorder, and all recorders', () => {

@@ -402,18 +402,28 @@ class SensusLahanTest extends TestCase
         $owner = User::factory()->create();
         $payload = $this->validPayload();
         $payload['nama_kth'] = 'KTH Tunas Hutan';
+        $payload['nama_penunjuk'] = 'Pak Hadi';
+        $payload['kabupaten_kota'] = 'Kabupaten Malang';
         $this->actingAs($owner)->withHeaders(['Accept' => 'application/json'])
             ->post('/sensus', $payload)->assertCreated()
-            ->assertJsonPath('data.nama_kth', 'KTH Tunas Hutan');
+            ->assertJsonPath('data.nama_kth', 'KTH Tunas Hutan')
+            ->assertJsonPath('data.nama_penunjuk', 'Pak Hadi')
+            ->assertJsonPath('data.kabupaten_kota', 'Kabupaten Malang');
         $record = PenggarapLahan::firstOrFail();
         $photoPath = $record->foto_path;
 
         $this->getJson('/dashboard/records?search=KTH%20Tunas')
             ->assertOk()->assertJsonPath('records.0.nama_kth', 'KTH Tunas Hutan');
+        $this->getJson('/dashboard/records?search=Pak%20Hadi')
+            ->assertOk()->assertJsonPath('records.0.nama_penunjuk', 'Pak Hadi');
+        $this->getJson('/dashboard/records?search=Kabupaten%20Malang')
+            ->assertOk()->assertJsonPath('records.0.kabupaten_kota', 'Kabupaten Malang');
 
         $response = $this->patch("/sensus/{$record->id}", [
             'nama' => 'Siti Rahma',
             'nama_kth' => 'KTH Rimba Jaya',
+            'nama_penunjuk' => 'Bu Rina',
+            'kabupaten_kota' => 'Kota Batu',
             'no_hp' => '081234567890',
             'luas_garapan' => 1.25,
             'lama_menggarap' => 9,
@@ -422,6 +432,8 @@ class SensusLahanTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('data.nama', 'Siti Rahma')
             ->assertJsonPath('data.nama_kth', 'KTH Rimba Jaya')
+            ->assertJsonPath('data.nama_penunjuk', 'Bu Rina')
+            ->assertJsonPath('data.kabupaten_kota', 'Kota Batu')
             ->assertJsonPath('data.no_hp', '081234567890');
         $this->assertDatabaseCount('penggarap_lahans', 1);
         $this->assertDatabaseHas('penggarap_lahans', [
@@ -429,6 +441,8 @@ class SensusLahanTest extends TestCase
             'created_by' => $owner->id,
             'nama' => 'Siti Rahma',
             'nama_kth' => 'KTH Rimba Jaya',
+            'nama_penunjuk' => 'Bu Rina',
+            'kabupaten_kota' => 'Kota Batu',
             'luas_garapan' => 1.25,
             'foto_path' => $photoPath,
         ]);
@@ -443,6 +457,19 @@ class SensusLahanTest extends TestCase
 
         $this->actingAs($owner)->postJson('/sensus', $payload)
             ->assertUnprocessable()->assertJsonValidationErrors('nama_kth');
+
+        $this->assertDatabaseCount('penggarap_lahans', 0);
+    }
+
+    public function test_nama_penunjuk_and_kabupaten_kota_cannot_exceed_one_hundred_characters(): void
+    {
+        $owner = User::factory()->create();
+        $payload = $this->validPayload();
+        $payload['nama_penunjuk'] = str_repeat('P', 101);
+        $payload['kabupaten_kota'] = str_repeat('K', 101);
+
+        $this->actingAs($owner)->postJson('/sensus', $payload)
+            ->assertUnprocessable()->assertJsonValidationErrors(['nama_penunjuk', 'kabupaten_kota']);
 
         $this->assertDatabaseCount('penggarap_lahans', 0);
     }

@@ -35,7 +35,7 @@ export function filterExportRecords(records, {
             return false;
         }
 
-        if (query && ![record.nama, record.nama_kth, record.no_hp, record.latitude, record.longitude]
+        if (query && ![record.nama, record.nama_kth, record.nama_penunjuk, record.kabupaten_kota, record.no_hp, record.latitude, record.longitude]
             .some((value) => String(value ?? '').toLowerCase().includes(query))) {
             return false;
         }

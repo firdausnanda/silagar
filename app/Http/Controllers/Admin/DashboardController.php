@@ -28,6 +28,8 @@ class DashboardController extends Controller
                 $query->where(function ($query) use ($search): void {
                     $query->where('nama', 'like', '%'.$search.'%')
                         ->orWhere('nama_kth', 'like', '%'.$search.'%')
+                        ->orWhere('nama_penunjuk', 'like', '%'.$search.'%')
+                        ->orWhere('kabupaten_kota', 'like', '%'.$search.'%')
                         ->orWhere('no_hp', 'like', '%'.$search.'%');
                 });
             })
@@ -38,6 +40,8 @@ class DashboardController extends Controller
                 'id' => $record->id,
                 'nama' => $record->nama,
                 'nama_kth' => $record->nama_kth,
+                'nama_penunjuk' => $record->nama_penunjuk,
+                'kabupaten_kota' => $record->kabupaten_kota,
                 'no_hp' => $record->no_hp,
                 'luas_garapan' => (float) $record->luas_garapan,
                 'lama_menggarap' => $record->lama_menggarap,

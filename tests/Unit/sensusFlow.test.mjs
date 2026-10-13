@@ -22,6 +22,8 @@ test('next bidang keeps Nama KTH and clears the previous bidang data', () => {
 
     assert.equal(next.step, 1);
     assert.equal(next.nama_kth, 'KTH Rimba Jaya');
+    assert.equal(next.nama_penunjuk, '');
+    assert.equal(next.kabupaten_kota, '');
     assert.equal(next.client_uuid, null);
     assert.equal(next.nama, '');
     assert.equal(next.foto, null);
