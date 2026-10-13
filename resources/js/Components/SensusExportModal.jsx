@@ -8,8 +8,8 @@ const exportColumns = [
     ['id', 'ID bidang'],
     ['nama', 'Nama penggarap'],
     ['nama_kth', 'Nama KTH'],
-    ['nama_penunjuk', 'Nama Penunjuk'],
     ['kabupaten_kota', 'Kabupaten/Kota'],
+    ['nama_penunjuk', 'Nama Penunjuk'],
     ['no_hp', 'Nomor HP'],
     ['luas_garapan', 'Luas garapan (Ha)'],
     ['lama_menggarap', 'Lama menggarap (tahun)'],
@@ -25,7 +25,7 @@ const exportColumns = [
 ];
 
 const defaultColumns = [
-    'nama', 'nama_kth', 'nama_penunjuk', 'kabupaten_kota', 'no_hp', 'luas_garapan', 'lama_menggarap',
+    'nama', 'nama_kth', 'kabupaten_kota', 'nama_penunjuk', 'no_hp', 'luas_garapan', 'lama_menggarap',
     'latitude', 'longitude', 'captured_at',
 ];
 const maxExportRecords = 1000;
@@ -187,7 +187,7 @@ export default function SensusExportModal({ show, onClose, pendingCount, online 
                 <fieldset className="space-y-3">
                     <legend className="font-bold text-forest">Pilih bidang</legend>
                     <p className="text-sm text-stone-700">Hanya bidang milik akun Anda yang tersedia untuk ekspor.</p>
-                    <label htmlFor="export-search" className="block text-sm font-semibold">Cari penggarap, KTH, penunjuk, kabupaten/kota, nomor HP, atau koordinat</label>
+                    <label htmlFor="export-search" className="block text-sm font-semibold">Cari penggarap, KTH, kabupaten/kota, penunjuk, nomor HP, atau koordinat</label>
                     <input id="export-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} className="min-h-11 w-full rounded-lg border-stone-500 focus:border-forest focus:ring-forest" />
                     <div className="grid gap-3 sm:grid-cols-2">
                         <div>
@@ -215,7 +215,7 @@ export default function SensusExportModal({ show, onClose, pendingCount, online 
                         ) : visibleRecords.map((record) => (
                             <label key={record.id} className="flex min-h-12 cursor-pointer items-center gap-3 rounded-lg p-2 hover:bg-surface-container-low focus-within:outline focus-within:outline-2 focus-within:outline-forest">
                                 <input type="checkbox" checked={selectedIds.has(Number(record.id))} onChange={() => toggleId(Number(record.id))} className="h-5 w-5 rounded border-stone-500 text-forest focus:ring-forest" />
-                                <span className="min-w-0 text-sm"><strong className="block break-words text-forest">{record.nama}</strong><span className="text-stone-700">#{record.id} · {record.creator_name} · {record.captured_at ? dateFormat.format(new Date(record.captured_at)) : 'Tanggal belum tersedia'}</span>{(record.nama_penunjuk || record.kabupaten_kota) && <span className="block text-stone-700">{[record.nama_penunjuk, record.kabupaten_kota].filter(Boolean).join(' · ')}</span>}</span>
+                                <span className="min-w-0 text-sm"><strong className="block break-words text-forest">{record.nama}</strong><span className="text-stone-700">#{record.id} · {record.creator_name} · {record.captured_at ? dateFormat.format(new Date(record.captured_at)) : 'Tanggal belum tersedia'}</span>{(record.kabupaten_kota || record.nama_penunjuk) && <span className="block text-stone-700">{[record.kabupaten_kota, record.nama_penunjuk].filter(Boolean).join(' · ')}</span>}</span>
                             </label>
                         ))}
                     </div>

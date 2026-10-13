@@ -28,8 +28,8 @@ class SensusImportController extends Controller
 
     private const OPTIONAL_HEADERS = [
         'nama_kth' => 'Nama KTH',
-        'nama_penunjuk' => 'Nama Penunjuk',
         'kabupaten_kota' => 'Kabupaten/Kota',
+        'nama_penunjuk' => 'Nama Penunjuk',
     ];
 
     public function template(): StreamedResponse

@@ -30,7 +30,7 @@ class SensusExportTest extends TestCase
 
         $response = $this->actingAs($owner)->postJson(route('sensus.export'), [
             'ids' => [$first->id],
-            'columns' => ['nama', 'nama_kth', 'nama_penunjuk', 'kabupaten_kota', 'no_hp', 'luas_garapan', 'captured_at'],
+            'columns' => ['nama', 'nama_kth', 'kabupaten_kota', 'nama_penunjuk', 'no_hp', 'luas_garapan', 'captured_at'],
         ]);
 
         $response->assertOk()
@@ -43,14 +43,14 @@ class SensusExportTest extends TestCase
             $workbook = IOFactory::load($path);
             $sheet = $workbook->getActiveSheet();
 
-            $this->assertSame(['Nama penggarap', 'Nama KTH', 'Nama Penunjuk', 'Kabupaten/Kota', 'Nomor HP', 'Luas garapan (Ha)', 'Waktu pencatatan (WIB)'], $sheet->rangeToArray('A1:G1')[0]);
+            $this->assertSame(['Nama penggarap', 'Nama KTH', 'Kabupaten/Kota', 'Nama Penunjuk', 'Nomor HP', 'Luas garapan (Ha)', 'Waktu pencatatan (WIB)'], $sheet->rangeToArray('A1:G1')[0]);
             $this->assertSame('=2+2', $sheet->getCell('A2')->getValue());
             $this->assertSame(DataType::TYPE_STRING, $sheet->getCell('A2')->getDataType());
             $this->assertSame('KTH Rimba Jaya', $sheet->getCell('B2')->getValue());
             $this->assertSame(DataType::TYPE_STRING, $sheet->getCell('B2')->getDataType());
-            $this->assertSame('Pak Hadi', $sheet->getCell('C2')->getValue());
+            $this->assertSame('Kabupaten Malang', $sheet->getCell('C2')->getValue());
             $this->assertSame(DataType::TYPE_STRING, $sheet->getCell('C2')->getDataType());
-            $this->assertSame('Kabupaten Malang', $sheet->getCell('D2')->getValue());
+            $this->assertSame('Pak Hadi', $sheet->getCell('D2')->getValue());
             $this->assertSame('081234567890', $sheet->getCell('E2')->getValue());
             $this->assertSame(DataType::TYPE_STRING, $sheet->getCell('E2')->getDataType());
             $this->assertSame(0.75, $sheet->getCell('F2')->getValue());

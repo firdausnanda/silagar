@@ -58,12 +58,12 @@ export default function SensusImportModal({ show, onClose, onImported }) {
             <form onSubmit={submit} className="space-y-5 p-5 sm:p-6">
                 <div>
                     <h2 className="text-xl font-bold text-forest">Impor data dari Excel</h2>
-                    <p className="mt-1 text-sm text-stone-700">Impor data penggarap, KTH, penunjuk, dan kabupaten/kota. Foto dan titik GPS dapat dilengkapi melalui Edit data setelah impor.</p>
+                    <p className="mt-1 text-sm text-stone-700">Impor data penggarap, KTH, kabupaten/kota, dan penunjuk. Foto dan titik GPS dapat dilengkapi melalui Edit data setelah impor.</p>
                 </div>
                 <div className="rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm text-stone-700">
                     <p className="font-semibold text-forest">Kolom yang diperlukan</p>
                     <p className="mt-1">Nama penggarap · Nomor HP · Luas garapan (Ha) · Lama menggarap (tahun)</p>
-                    <p className="mt-1 text-xs">Nama KTH, Nama Penunjuk, dan Kabupaten/Kota adalah kolom opsional.</p>
+                    <p className="mt-1 text-xs">Nama KTH, Kabupaten/Kota, dan Nama Penunjuk adalah kolom opsional.</p>
                     <a href={route('sensus.import.template')} className="mt-2 inline-block font-semibold text-forest underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest">Unduh template Excel</a>
                 </div>
                 <div>

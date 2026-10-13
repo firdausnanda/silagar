@@ -127,7 +127,7 @@ class SensusImportTest extends TestCase
             $workbook = IOFactory::load($path);
             $this->assertSame([
                 'Nama penggarap', 'Nomor HP', 'Luas garapan (Ha)', 'Lama menggarap (tahun)',
-                'Nama KTH', 'Nama Penunjuk', 'Kabupaten/Kota',
+                'Nama KTH', 'Kabupaten/Kota', 'Nama Penunjuk',
             ], $workbook->getSheet(0)->rangeToArray('A1:G1')[0]);
         } finally {
             if (isset($workbook)) {

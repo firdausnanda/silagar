@@ -828,7 +828,7 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
                             {' · '}Total bidang Anda: {numberFormat.format(summary.total)}
                         </span>
                     </div>
-                    <label htmlFor="cari" className="sr-only">Cari penggarap, KTH, penunjuk, kabupaten/kota, nomor HP, atau koordinat</label>
+                    <label htmlFor="cari" className="sr-only">Cari penggarap, KTH, kabupaten/kota, penunjuk, nomor HP, atau koordinat</label>
                     <input id="cari" type="search" maxLength="100" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari penggarap, KTH, nomor HP, atau koordinat" className="min-h-12 w-full rounded-lg border-stone-300 bg-white text-base focus:border-forest focus:ring-forest" />
                     {searchLoading && <p role="status" className="flex items-center gap-2 text-sm text-stone-700"><BusyIndicator active={searchLoading} />Mencari di server...</p>}
                     {!online && search.trim() && <p className="text-sm text-stone-700">Pencarian luring hanya mencakup bidang yang tersimpan di perangkat ini.</p>}
@@ -865,8 +865,8 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
                                     </div>
                                     <p className="mt-1 text-sm text-stone-700">{numberFormat.format(Number(record.luas_garapan))} Ha · {record.lama_menggarap} tahun</p>
                                     {record.nama_kth && <p className="mt-1 break-words text-xs text-stone-700">KTH: {record.nama_kth}</p>}
-                                    {record.nama_penunjuk && <p className="mt-1 break-words text-xs text-stone-700">Penunjuk: {record.nama_penunjuk}</p>}
                                     {record.kabupaten_kota && <p className="mt-1 break-words text-xs text-stone-700">{record.kabupaten_kota}</p>}
+                                    {record.nama_penunjuk && <p className="mt-1 break-words text-xs text-stone-700">Penunjuk: {record.nama_penunjuk}</p>}
                                     <p className="mt-1 text-xs text-stone-700">{formatDate(record.captured_at)}</p>
                                 </div>
                             </div>
@@ -911,15 +911,15 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
                         <input id="edit-nama-kth" className="field-input" maxLength="100" value={editData.nama_kth} onChange={(event) => setEditData({ ...editData, nama_kth: event.target.value })} />
                     </div>
                     <div>
-                        <label htmlFor="edit-nama-penunjuk" className="mb-1 block text-sm font-semibold">Nama Penunjuk (opsional)</label>
-                        <input id="edit-nama-penunjuk" className="field-input" maxLength="100" value={editData.nama_penunjuk} onChange={(event) => setEditData({ ...editData, nama_penunjuk: event.target.value })} />
-                    </div>
-                    <div>
                         <label htmlFor="edit-kabupaten-kota" className="mb-1 block text-sm font-semibold">Kabupaten/Kota (opsional)</label>
                         <SearchableSelect id="edit-kabupaten-kota" value={editData.kabupaten_kota} onChange={(value) => setEditData({ ...editData, kabupaten_kota: value })} options={[
                             ...(editData.kabupaten_kota && !kabupatenKotaJawaTimur.includes(editData.kabupaten_kota) ? [{ value: editData.kabupaten_kota, label: editData.kabupaten_kota }] : []),
                             ...kabupatenKotaJawaTimur.map((wilayah) => ({ value: wilayah, label: wilayah })),
                         ]} placeholder="Cari kabupaten/kota di Jawa Timur" />
+                    </div>
+                    <div>
+                        <label htmlFor="edit-nama-penunjuk" className="mb-1 block text-sm font-semibold">Nama Penunjuk (opsional)</label>
+                        <input id="edit-nama-penunjuk" className="field-input" maxLength="100" value={editData.nama_penunjuk} onChange={(event) => setEditData({ ...editData, nama_penunjuk: event.target.value })} />
                     </div>
                     <div>
                         <label htmlFor="edit-no-hp" className="mb-1 block text-sm font-semibold">Nomor HP / WhatsApp (opsional)</label>
@@ -990,8 +990,8 @@ export default function Dashboard({ records: initialRecords = [], next_cursor: i
                             <dl className="grid grid-cols-2 gap-3 text-sm">
                                 <div><dt className="text-stone-600">Luas</dt><dd className="font-semibold">{numberFormat.format(Number(selected.luas_garapan))} Ha</dd></div>
                                 {selected.nama_kth && <div className="col-span-2"><dt className="text-stone-600">Nama KTH</dt><dd className="break-words font-semibold">{selected.nama_kth}</dd></div>}
-                                {selected.nama_penunjuk && <div className="col-span-2"><dt className="text-stone-600">Nama Penunjuk</dt><dd className="break-words font-semibold">{selected.nama_penunjuk}</dd></div>}
                                 {selected.kabupaten_kota && <div className="col-span-2"><dt className="text-stone-600">Kabupaten/Kota</dt><dd className="break-words font-semibold">{selected.kabupaten_kota}</dd></div>}
+                                {selected.nama_penunjuk && <div className="col-span-2"><dt className="text-stone-600">Nama Penunjuk</dt><dd className="break-words font-semibold">{selected.nama_penunjuk}</dd></div>}
                                 <div><dt className="text-stone-600">Lama garap</dt><dd className="font-semibold">{selected.lama_menggarap} tahun</dd></div>
                                 <div><dt className="text-stone-600">Lintang</dt><dd className="break-all font-mono">{selected.latitude ?? 'Belum tersedia'}</dd></div>
                                 <div><dt className="text-stone-600">Bujur</dt><dd className="break-all font-mono">{selected.longitude ?? 'Belum tersedia'}</dd></div>

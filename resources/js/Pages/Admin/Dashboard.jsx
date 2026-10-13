@@ -46,7 +46,7 @@ export default function Dashboard({ records, summary, recorders, filters }) {
                 </div>
                 <form onSubmit={applyFilters} className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px_auto] sm:items-end">
                     <div>
-                        <label htmlFor="admin-search" className="mb-1 block text-sm font-semibold text-stone-700">Cari penggarap, KTH, penunjuk, kabupaten/kota, atau nomor HP</label>
+                        <label htmlFor="admin-search" className="mb-1 block text-sm font-semibold text-stone-700">Cari penggarap, KTH, kabupaten/kota, penunjuk, atau nomor HP</label>
                         <input id="admin-search" type="search" maxLength="100" value={search} onChange={(event) => setSearch(event.target.value)} className="min-h-11 w-full rounded-lg border-stone-300 focus:border-forest focus:ring-forest" />
                     </div>
                     <div>
@@ -58,13 +58,13 @@ export default function Dashboard({ records, summary, recorders, filters }) {
 
                 <div className="mt-5 overflow-x-auto">
                     <table className="min-w-[1080px] w-full border-collapse text-left text-sm">
-                        <thead><tr className="border-b border-stone-200 text-stone-600"><th className="py-3 pr-4 font-semibold">Bidang</th><th className="py-3 pr-4 font-semibold">Nama Penunjuk</th><th className="py-3 pr-4 font-semibold">Kabupaten/Kota</th><th className="py-3 pr-4 font-semibold">Petugas</th><th className="py-3 pr-4 font-semibold">Garapan</th><th className="py-3 pr-4 font-semibold">Koordinat</th><th className="py-3 font-semibold">Dicatat</th></tr></thead>
+                        <thead><tr className="border-b border-stone-200 text-stone-600"><th className="py-3 pr-4 font-semibold">Bidang</th><th className="py-3 pr-4 font-semibold">Kabupaten/Kota</th><th className="py-3 pr-4 font-semibold">Nama Penunjuk</th><th className="py-3 pr-4 font-semibold">Petugas</th><th className="py-3 pr-4 font-semibold">Garapan</th><th className="py-3 pr-4 font-semibold">Koordinat</th><th className="py-3 font-semibold">Dicatat</th></tr></thead>
                         <tbody>
                             {records.data.map((record) => (
                                 <tr key={record.id} className="border-b border-stone-100 align-top">
                                     <td className="py-3 pr-4"><strong className="text-forest">{record.nama}</strong>{record.nama_kth && <span className="mt-1 block break-words text-xs text-stone-600">KTH: {record.nama_kth}</span>}<span className="mt-1 block text-xs text-stone-500">#{record.id}{record.no_hp ? ` · ${record.no_hp}` : ''}</span>{record.foto_url ? <a href={record.foto_url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block font-semibold text-forest underline decoration-emerald-300 underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest">Lihat foto</a> : <span className="mt-1 block text-xs font-medium text-amber-800">Foto belum tersedia</span>}</td>
-                                    <td className="py-3 pr-4">{record.nama_penunjuk || '—'}</td>
                                     <td className="py-3 pr-4">{record.kabupaten_kota || '—'}</td>
+                                    <td className="py-3 pr-4">{record.nama_penunjuk || '—'}</td>
                                     <td className="py-3 pr-4">{record.creator_name}</td>
                                     <td className="py-3 pr-4">
                                         <span className="block whitespace-nowrap font-semibold text-forest">{numberFormat.format(record.luas_garapan)} Ha</span>
