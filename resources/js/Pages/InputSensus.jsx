@@ -543,7 +543,7 @@ export default function InputSensus() {
                             </section>
                         </form>
                     ) : (
-                        <form id="kth-form" onSubmit={goToIdentity} className="step-enter space-y-4">
+                        <form id="kth-form" onSubmit={goToIdentity} className="step-enter relative z-[11] space-y-4">
                             <section className="space-y-4 rounded-xl bg-white p-4 shadow-sm" aria-labelledby="kth-title">
                                 <div>
                                     <h2 id="kth-title" className="font-bold text-forest">KTH dan lokasi</h2>
