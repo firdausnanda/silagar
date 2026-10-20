@@ -36,10 +36,12 @@ class SensusExportController extends Controller
     public function __invoke(ExportSensusRequest $request): StreamedResponse
     {
         $data = $request->validated();
+        $isAdminExport = $request->routeIs('admin.sensus.export');
         $query = PenggarapLahan::query()
             ->with('creator:id,name')
             ->whereIn('id', $data['ids'])
-            ->where('created_by', $request->user()->id)
+            ->when($isAdminExport && $data['scope'] === 'user', fn ($query) => $query->where('created_by', $data['user_id']))
+            ->when(! $isAdminExport, fn ($query) => $query->where('created_by', $request->user()->id))
             ->orderByDesc('captured_at')
             ->orderByDesc('id');
 

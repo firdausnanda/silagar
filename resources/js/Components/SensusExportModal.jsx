@@ -2,6 +2,7 @@ import axios from 'axios';
 import { useEffect, useMemo, useState } from 'react';
 import BusyIndicator from './BusyIndicator';
 import Modal from './Modal';
+import SearchableSelect from './SearchableSelect';
 import { filterExportRecords } from './sensusExportData';
 
 const exportColumns = [
@@ -35,12 +36,14 @@ const dateFormat = new Intl.DateTimeFormat('id-ID', {
     day: 'numeric', month: 'short', year: 'numeric',
 });
 
-export default function SensusExportModal({ show, onClose, pendingCount, online }) {
+export default function SensusExportModal({ show, onClose, pendingCount = 0, online = true, admin = false }) {
     const [catalog, setCatalog] = useState(null);
     const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
+    const [recorderScope, setRecorderScope] = useState('all');
+    const [selectedUserId, setSelectedUserId] = useState('');
     const [selectedIds, setSelectedIds] = useState(new Set());
     const [selectedColumns, setSelectedColumns] = useState(new Set(defaultColumns));
     const [downloading, setDownloading] = useState(false);
@@ -56,7 +59,7 @@ export default function SensusExportModal({ show, onClose, pendingCount, online 
         setLoading(true);
         setCatalog(null);
         setError('');
-        axios.get(route('sensus.export.choices'), { headers: { Accept: 'application/json' } })
+        axios.get(route(admin ? 'admin.sensus.export.choices' : 'sensus.export.choices'), { headers: { Accept: 'application/json' } })
             .then(({ data }) => {
                 if (!cancelled) {
                     setCatalog(data);
@@ -76,13 +79,16 @@ export default function SensusExportModal({ show, onClose, pendingCount, online 
             });
 
         return () => { cancelled = true; };
-    }, [show, online]);
+    }, [show, online, admin]);
 
     const availableRecords = catalog?.records ?? [];
     const visibleRecords = useMemo(() => filterExportRecords(availableRecords, {
         search, startDate, endDate,
-    }), [availableRecords, search, startDate, endDate]);
-    const availableIds = new Set(availableRecords.map((record) => Number(record.id)));
+        recorderScope: admin ? recorderScope : 'all', selectedUserId,
+    }), [availableRecords, search, startDate, endDate, admin, recorderScope, selectedUserId]);
+    const availableIds = new Set(availableRecords
+        .filter((record) => !admin || recorderScope === 'all' || Number(record.created_by) === Number(selectedUserId))
+        .map((record) => Number(record.id)));
     const chosenIds = [...selectedIds].filter((id) => availableIds.has(id));
     const columns = exportColumns.map(([key]) => key).filter((key) => selectedColumns.has(key));
     const invalidDateRange = Boolean(startDate && endDate && startDate > endDate);
@@ -126,10 +132,11 @@ export default function SensusExportModal({ show, onClose, pendingCount, online 
         setStatus('');
 
         try {
-            const response = await axios.post(route('sensus.export'), {
+            const response = await axios.post(route(admin ? 'admin.sensus.export' : 'sensus.export'), {
                 ids: chosenIds,
                 columns,
-                scope: 'mine',
+                scope: admin ? recorderScope : 'mine',
+                ...(admin && recorderScope === 'user' ? { user_id: Number(selectedUserId) } : {}),
             }, {
                 responseType: 'blob',
                 headers: { Accept: 'application/json' },
@@ -186,7 +193,18 @@ export default function SensusExportModal({ show, onClose, pendingCount, online 
 
                 <fieldset className="space-y-3">
                     <legend className="font-bold text-forest">Pilih bidang</legend>
-                    <p className="text-sm text-stone-700">Hanya bidang milik akun Anda yang tersedia untuk ekspor.</p>
+                    <p className="text-sm text-stone-700">{admin ? 'Bidang dari seluruh petugas tersedia untuk ekspor.' : 'Hanya bidang milik akun Anda yang tersedia untuk ekspor.'}</p>
+                    {admin && <div className="space-y-2">
+                        <label htmlFor="export-recorder-scope" className="block text-sm font-semibold">Cakupan petugas</label>
+                        <select id="export-recorder-scope" value={recorderScope} onChange={(event) => setRecorderScope(event.target.value)} className="min-h-11 w-full rounded-lg border-stone-500 focus:border-forest focus:ring-forest">
+                            <option value="all">Semua petugas</option>
+                            <option value="user">Satu petugas</option>
+                        </select>
+                        {recorderScope === 'user' && <div>
+                            <label htmlFor="export-recorder" className="mb-1 block text-sm font-semibold">Pilih petugas</label>
+                            <SearchableSelect id="export-recorder" value={selectedUserId} onChange={setSelectedUserId} options={(catalog?.users ?? []).map((user) => ({ value: String(user.id), label: user.name }))} placeholder="Cari petugas" compact backgroundColor="#ffffff" />
+                        </div>}
+                    </div>}
                     <label htmlFor="export-search" className="block text-sm font-semibold">Cari penggarap, KTH, kabupaten/kota, penunjuk, nomor HP, atau koordinat</label>
                     <input id="export-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} className="min-h-11 w-full rounded-lg border-stone-500 focus:border-forest focus:ring-forest" />
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -211,7 +229,7 @@ export default function SensusExportModal({ show, onClose, pendingCount, online 
                         {loading ? (
                             <p role="status" className="flex items-center gap-2 p-3 text-sm text-stone-700"><BusyIndicator active={loading} />Memuat bidang dari server...</p>
                         ) : visibleRecords.length === 0 ? (
-                            <p className="p-3 text-sm text-stone-700">{catalog ? 'Tidak ada bidang tersinkron yang cocok.' : 'Daftar bidang belum tersedia.'}</p>
+                            <p className="p-3 text-sm text-stone-700">{admin && recorderScope === 'user' && !selectedUserId ? 'Pilih petugas untuk melihat bidang.' : catalog ? 'Tidak ada bidang tersinkron yang cocok.' : 'Daftar bidang belum tersedia.'}</p>
                         ) : visibleRecords.map((record) => (
                             <label key={record.id} className="flex min-h-12 cursor-pointer items-center gap-3 rounded-lg p-2 hover:bg-surface-container-low focus-within:outline focus-within:outline-2 focus-within:outline-forest">
                                 <input type="checkbox" checked={selectedIds.has(Number(record.id))} onChange={() => toggleId(Number(record.id))} className="h-5 w-5 rounded border-stone-500 text-forest focus:ring-forest" />

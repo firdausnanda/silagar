@@ -23,6 +23,8 @@ class ExportSensusRequest extends FormRequest
      */
     public function rules(): array
     {
+        $isAdminExport = $this->routeIs('admin.sensus.export');
+
         return [
             'ids' => ['required', 'array', 'min:1', 'max:1000'],
             'ids.*' => ['required', 'integer', 'min:1', 'distinct'],
@@ -32,8 +34,12 @@ class ExportSensusRequest extends FormRequest
                 'latitude', 'longitude', 'utm_x', 'utm_y', 'utm_epsg',
                 'gps_accuracy_m', 'captured_at', 'updated_at', 'creator_name',
             ])],
-            'scope' => ['sometimes', 'string', Rule::in(['mine'])],
-            'user_id' => ['prohibited'],
+            'scope' => $isAdminExport
+                ? ['required', 'string', Rule::in(['all', 'user'])]
+                : ['sometimes', 'string', Rule::in(['mine'])],
+            'user_id' => $isAdminExport
+                ? ['required_if:scope,user', 'prohibited_unless:scope,user', 'integer', 'exists:users,id']
+                : ['prohibited'],
         ];
     }
 }

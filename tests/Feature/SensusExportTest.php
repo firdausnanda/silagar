@@ -9,6 +9,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class SensusExportTest extends TestCase
@@ -276,6 +277,80 @@ class SensusExportTest extends TestCase
         ])->assertUnprocessable()->assertJsonValidationErrors(['ids']);
 
         $this->assertStringContainsString('1000', $response->json('errors.ids.0'));
+    }
+
+    public function test_admin_can_list_and_export_selected_records_from_all_petugas(): void
+    {
+        Storage::fake('local');
+        Role::findOrCreate('admin', 'web');
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        $firstPetugas = User::factory()->create(['name' => 'Petugas A']);
+        $secondPetugas = User::factory()->create(['name' => 'Petugas B']);
+        $first = $this->createRecord($firstPetugas, '11111111-1111-4111-8111-111111111111', 'Bidang A', '08111');
+        $second = $this->createRecord($secondPetugas, '22222222-2222-4222-8222-222222222222', 'Bidang B', '08222');
+
+        $choices = $this->actingAs($admin)->getJson(route('admin.sensus.export.choices'))
+            ->assertOk()->assertJsonCount(2, 'users')->assertJsonCount(2, 'records');
+        $this->assertEqualsCanonicalizing([$first->id, $second->id], array_column($choices->json('records'), 'id'));
+
+        $response = $this->postJson(route('admin.sensus.export'), [
+            'ids' => [$first->id, $second->id],
+            'columns' => ['nama', 'creator_name'],
+            'scope' => 'all',
+        ])->assertOk()->assertDownload();
+
+        $path = tempnam(sys_get_temp_dir(), 'sensus-export-');
+        try {
+            file_put_contents($path, $response->streamedContent());
+            $workbook = IOFactory::load($path);
+            $rows = $workbook->getActiveSheet()->rangeToArray('A1:B3');
+            $this->assertSame(['Nama penggarap', 'Petugas pencatat'], $rows[0]);
+            $this->assertEqualsCanonicalizing([['Bidang A', 'Petugas A'], ['Bidang B', 'Petugas B']], array_slice($rows, 1));
+        } finally {
+            if (isset($workbook)) {
+                $workbook->disconnectWorksheets();
+            }
+            unlink($path);
+        }
+    }
+
+    public function test_admin_export_for_one_petugas_rejects_records_from_another_petugas(): void
+    {
+        Storage::fake('local');
+        Role::findOrCreate('admin', 'web');
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        $firstPetugas = User::factory()->create();
+        $secondPetugas = User::factory()->create();
+        $first = $this->createRecord($firstPetugas, '11111111-1111-4111-8111-111111111111', 'Bidang A', '08111');
+        $second = $this->createRecord($secondPetugas, '22222222-2222-4222-8222-222222222222', 'Bidang B', '08222');
+
+        $this->actingAs($admin)->postJson(route('admin.sensus.export'), [
+            'ids' => [$first->id], 'columns' => ['nama'], 'scope' => 'user', 'user_id' => $firstPetugas->id,
+        ])->assertOk()->assertDownload();
+
+        $this->postJson(route('admin.sensus.export'), [
+            'ids' => [$first->id, $second->id], 'columns' => ['nama'], 'scope' => 'user', 'user_id' => $firstPetugas->id,
+        ])->assertUnprocessable()->assertJsonValidationErrors(['ids']);
+
+        $this->postJson(route('admin.sensus.export'), [
+            'ids' => [$first->id], 'columns' => ['nama'], 'scope' => 'user',
+        ])->assertUnprocessable()->assertJsonValidationErrors(['user_id']);
+
+        $this->postJson(route('admin.sensus.export'), [
+            'ids' => [$first->id], 'columns' => ['nama'], 'scope' => 'all', 'user_id' => $firstPetugas->id,
+        ])->assertUnprocessable()->assertJsonValidationErrors(['user_id']);
+    }
+
+    public function test_admin_export_routes_require_admin_access(): void
+    {
+        $this->getJson('/admin/sensus/export/choices')->assertUnauthorized();
+        $this->postJson('/admin/sensus/export', [])->assertUnauthorized();
+
+        $petugas = User::factory()->create();
+        $this->actingAs($petugas)->getJson('/admin/sensus/export/choices')->assertForbidden();
+        $this->postJson('/admin/sensus/export', [])->assertForbidden();
     }
 
     private function createRecord(User $owner, string $uuid, string $name, string $phone): PenggarapLahan

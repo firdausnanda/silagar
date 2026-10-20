@@ -1,6 +1,7 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 import SearchableSelect from '../../Components/SearchableSelect';
+import SensusExportModal from '../../Components/SensusExportModal';
 import AdminLayout from '../../Layouts/AdminLayout';
 
 const numberFormat = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 });
@@ -12,6 +13,7 @@ const dateFormat = new Intl.DateTimeFormat('id-ID', {
 export default function Dashboard({ records, summary, recorders, filters }) {
     const [search, setSearch] = useState(filters.search ?? '');
     const [userId, setUserId] = useState(String(filters.user_id ?? ''));
+    const [exportOpen, setExportOpen] = useState(false);
 
     const applyFilters = (event) => {
         event.preventDefault();
@@ -43,6 +45,7 @@ export default function Dashboard({ records, summary, recorders, filters }) {
                         <h2 id="admin-records-title" className="text-lg font-bold text-forest">Daftar sensus</h2>
                         <p className="mt-1 text-sm text-stone-600">{numberFormat.format(records.total)} bidang sesuai filter. Entri yang masih luring di perangkat petugas belum terlihat.</p>
                     </div>
+                    <button type="button" onClick={() => setExportOpen(true)} className="min-h-11 rounded-lg border border-forest px-4 font-semibold text-forest focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">Ekspor Excel</button>
                 </div>
                 <form onSubmit={applyFilters} className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px_auto] sm:items-end">
                     <div>
@@ -98,6 +101,7 @@ export default function Dashboard({ records, summary, recorders, filters }) {
                     </div>
                 </div>
             </section>
+            <SensusExportModal show={exportOpen} onClose={() => setExportOpen(false)} admin />
         </AdminLayout>
     );
 }

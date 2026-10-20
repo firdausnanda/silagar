@@ -6,6 +6,8 @@ use App\Http\Controllers\Admin\GoogleDriveConnectionController;
 use App\Http\Controllers\Admin\ImpersonationController;
 use App\Http\Controllers\Admin\SensusPhotoController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\SensusExportChoicesController;
+use App\Http\Controllers\SensusExportController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', DashboardController::class)->name('dashboard');
@@ -14,6 +16,8 @@ Route::post('/backups', [BackupController::class, 'store'])->name('backups.store
 Route::get('/backups/connect', [GoogleDriveConnectionController::class, 'create'])->name('backups.connect');
 Route::get('/backups/callback', [GoogleDriveConnectionController::class, 'callback'])->name('backups.callback');
 Route::get('/sensus/{record}/foto', SensusPhotoController::class)->name('sensus.photo');
+Route::get('/sensus/export/choices', SensusExportChoicesController::class)->name('sensus.export.choices');
+Route::post('/sensus/export', SensusExportController::class)->name('sensus.export');
 Route::get('/users', [UserController::class, 'index'])->name('users.index');
 Route::post('/users', [UserController::class, 'store'])->name('users.store');
 Route::patch('/users/{user}', [UserController::class, 'update'])->name('users.update');
