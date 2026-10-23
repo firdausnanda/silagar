@@ -31,6 +31,7 @@ class SensusExportController extends Controller
         'captured_at' => 'Waktu pencatatan (WIB)',
         'updated_at' => 'Waktu pembaruan (WIB)',
         'creator_name' => 'Petugas pencatat',
+        'foto_url' => 'Link foto',
     ];
 
     public function __invoke(ExportSensusRequest $request): StreamedResponse
@@ -54,9 +55,10 @@ class SensusExportController extends Controller
         }
 
         $columns = array_values($data['columns']);
+        $photoRouteName = $isAdminExport ? 'admin.sensus.photo' : 'sensus.photo';
         $filename = 'sipintar-hut-'.now('Asia/Jakarta')->format('Ymd-His').'.xlsx';
 
-        return response()->streamDownload(function () use ($records, $columns): void {
+        return response()->streamDownload(function () use ($records, $columns, $photoRouteName): void {
             $workbook = new Spreadsheet;
             $sheet = $workbook->getActiveSheet();
             $sheet->setTitle('Data sensus');
@@ -68,11 +70,15 @@ class SensusExportController extends Controller
 
             foreach ($records as $rowIndex => $record) {
                 foreach ($columns as $columnIndex => $column) {
-                    $value = $this->columnValue($record, $column);
+                    $value = $this->columnValue($record, $column, $photoRouteName);
                     $address = Coordinate::stringFromColumnIndex($columnIndex + 1).($rowIndex + 2);
 
                     if (is_string($value)) {
                         $sheet->setCellValueExplicit($address, $value, DataType::TYPE_STRING);
+
+                        if ($column === 'foto_url') {
+                            $sheet->getCell($address)->getHyperlink()->setUrl($value);
+                        }
                     } elseif ($value !== null) {
                         $sheet->setCellValue($address, $value);
                     }
@@ -93,7 +99,7 @@ class SensusExportController extends Controller
         ]);
     }
 
-    private function columnValue(PenggarapLahan $record, string $column): string|float|int|null
+    private function columnValue(PenggarapLahan $record, string $column, string $photoRouteName): string|float|int|null
     {
         return match ($column) {
             'id' => $record->id,
@@ -113,6 +119,7 @@ class SensusExportController extends Controller
             'captured_at' => $record->captured_at === null ? null : $record->captured_at->copy()->timezone('Asia/Jakarta')->format('d/m/Y H:i').' WIB',
             'updated_at' => $record->updated_at === null ? null : $record->updated_at->copy()->timezone('Asia/Jakarta')->format('d/m/Y H:i').' WIB',
             'creator_name' => $record->creator?->name ?? 'Pengguna tidak tersedia',
+            'foto_url' => $record->foto_path === null ? null : route($photoRouteName, $record->id),
         };
     }
 }

@@ -16,6 +16,14 @@ class SensusExportTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config()->set('services.google_drive.refresh_token', null);
+        config()->set('services.google_drive.folder', null);
+    }
+
     public function test_owner_downloads_only_selected_rows_and_columns_as_xlsx(): void
     {
         Storage::fake('local');
@@ -31,7 +39,7 @@ class SensusExportTest extends TestCase
 
         $response = $this->actingAs($owner)->postJson(route('sensus.export'), [
             'ids' => [$first->id],
-            'columns' => ['nama', 'nama_kth', 'kabupaten_kota', 'nama_penunjuk', 'no_hp', 'luas_garapan', 'captured_at'],
+            'columns' => ['nama', 'nama_kth', 'kabupaten_kota', 'nama_penunjuk', 'no_hp', 'luas_garapan', 'captured_at', 'foto_url'],
         ]);
 
         $response->assertOk()
@@ -44,7 +52,7 @@ class SensusExportTest extends TestCase
             $workbook = IOFactory::load($path);
             $sheet = $workbook->getActiveSheet();
 
-            $this->assertSame(['Nama penggarap', 'Nama KTH', 'Kabupaten/Kota', 'Nama Penunjuk', 'Nomor HP', 'Luas garapan (Ha)', 'Waktu pencatatan (WIB)'], $sheet->rangeToArray('A1:G1')[0]);
+            $this->assertSame(['Nama penggarap', 'Nama KTH', 'Kabupaten/Kota', 'Nama Penunjuk', 'Nomor HP', 'Luas garapan (Ha)', 'Waktu pencatatan (WIB)', 'Link foto'], $sheet->rangeToArray('A1:H1')[0]);
             $this->assertSame('=2+2', $sheet->getCell('A2')->getValue());
             $this->assertSame(DataType::TYPE_STRING, $sheet->getCell('A2')->getDataType());
             $this->assertSame('KTH Rimba Jaya', $sheet->getCell('B2')->getValue());
@@ -56,8 +64,11 @@ class SensusExportTest extends TestCase
             $this->assertSame(DataType::TYPE_STRING, $sheet->getCell('E2')->getDataType());
             $this->assertSame(0.75, $sheet->getCell('F2')->getValue());
             $this->assertSame('08/10/2026 09:15 WIB', $sheet->getCell('G2')->getValue());
+            $this->assertSame(route('sensus.photo', $first->id), $sheet->getCell('H2')->getValue());
+            $this->assertSame(DataType::TYPE_STRING, $sheet->getCell('H2')->getDataType());
+            $this->assertSame(route('sensus.photo', $first->id), $sheet->getCell('H2')->getHyperlink()->getUrl());
             $this->assertSame(2, $sheet->getHighestRow());
-            $this->assertSame('G', $sheet->getHighestColumn());
+            $this->assertSame('H', $sheet->getHighestColumn());
         } finally {
             if (isset($workbook)) {
                 $workbook->disconnectWorksheets();
@@ -233,6 +244,35 @@ class SensusExportTest extends TestCase
         }
     }
 
+    public function test_missing_photo_has_no_link_in_excel(): void
+    {
+        Storage::fake('local');
+        $owner = User::factory()->create();
+        $record = $this->createRecord($owner, '11111111-1111-4111-8111-111111111111', 'Siti', '08123');
+        $record->update(['foto_path' => null]);
+
+        $response = $this->actingAs($owner)->postJson('/sensus/export', [
+            'ids' => [$record->id],
+            'columns' => ['nama', 'foto_url'],
+        ])->assertOk();
+
+        $path = tempnam(sys_get_temp_dir(), 'sensus-export-');
+        try {
+            file_put_contents($path, $response->streamedContent());
+            $workbook = IOFactory::load($path);
+            $sheet = $workbook->getActiveSheet();
+
+            $this->assertSame('Siti', $sheet->getCell('A2')->getValue());
+            $this->assertNull($sheet->getCell('B2')->getValue());
+            $this->assertSame('', $sheet->getCell('B2')->getHyperlink()->getUrl());
+        } finally {
+            if (isset($workbook)) {
+                $workbook->disconnectWorksheets();
+            }
+            unlink($path);
+        }
+    }
+
     public function test_owner_cannot_export_another_petugas_record(): void
     {
         Storage::fake('local');
@@ -296,7 +336,7 @@ class SensusExportTest extends TestCase
 
         $response = $this->postJson(route('admin.sensus.export'), [
             'ids' => [$first->id, $second->id],
-            'columns' => ['nama', 'creator_name'],
+            'columns' => ['nama', 'creator_name', 'foto_url'],
             'scope' => 'all',
         ])->assertOk()->assertDownload();
 
@@ -304,9 +344,14 @@ class SensusExportTest extends TestCase
         try {
             file_put_contents($path, $response->streamedContent());
             $workbook = IOFactory::load($path);
-            $rows = $workbook->getActiveSheet()->rangeToArray('A1:B3');
-            $this->assertSame(['Nama penggarap', 'Petugas pencatat'], $rows[0]);
-            $this->assertEqualsCanonicalizing([['Bidang A', 'Petugas A'], ['Bidang B', 'Petugas B']], array_slice($rows, 1));
+            $sheet = $workbook->getActiveSheet();
+            $rows = $sheet->rangeToArray('A1:C3');
+            $this->assertSame(['Nama penggarap', 'Petugas pencatat', 'Link foto'], $rows[0]);
+            $this->assertEqualsCanonicalizing([
+                ['Bidang A', 'Petugas A', route('admin.sensus.photo', $first->id)],
+                ['Bidang B', 'Petugas B', route('admin.sensus.photo', $second->id)],
+            ], array_slice($rows, 1));
+            $this->assertSame($sheet->getCell('C2')->getValue(), $sheet->getCell('C2')->getHyperlink()->getUrl());
         } finally {
             if (isset($workbook)) {
                 $workbook->disconnectWorksheets();

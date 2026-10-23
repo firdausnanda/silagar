@@ -23,11 +23,12 @@ const exportColumns = [
     ['captured_at', 'Waktu pencatatan (WIB)'],
     ['updated_at', 'Waktu pembaruan (WIB)'],
     ['creator_name', 'Petugas pencatat'],
+    ['foto_url', 'Link foto'],
 ];
 
 const defaultColumns = [
     'nama', 'nama_kth', 'kabupaten_kota', 'nama_penunjuk', 'no_hp', 'luas_garapan', 'lama_menggarap',
-    'latitude', 'longitude', 'captured_at',
+    'latitude', 'longitude', 'captured_at', 'foto_url',
 ];
 const maxExportRecords = 1000;
 

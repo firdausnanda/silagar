@@ -32,7 +32,7 @@ class ExportSensusRequest extends FormRequest
             'columns.*' => ['required', 'string', 'distinct', Rule::in([
                 'id', 'nama', 'nama_kth', 'nama_penunjuk', 'kabupaten_kota', 'no_hp', 'luas_garapan', 'lama_menggarap',
                 'latitude', 'longitude', 'utm_x', 'utm_y', 'utm_epsg',
-                'gps_accuracy_m', 'captured_at', 'updated_at', 'creator_name',
+                'gps_accuracy_m', 'captured_at', 'updated_at', 'creator_name', 'foto_url',
             ])],
             'scope' => $isAdminExport
                 ? ['required', 'string', Rule::in(['all', 'user'])]

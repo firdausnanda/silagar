@@ -93,6 +93,87 @@ class AdminAccessTest extends TestCase
         $this->actingAs($firstPetugas)->get(route('admin.sensus.photo', $first))->assertForbidden();
     }
 
+    public function test_admin_can_combine_advanced_filters_and_sort_results(): void
+    {
+        Role::findOrCreate('admin', 'web');
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        $petugas = User::factory()->create();
+
+        $first = $this->createRecord($petugas, 'Garapan kecil');
+        $first->update([
+            'kabupaten_kota' => 'Kabupaten Malang',
+            'luas_garapan' => 1.25,
+            'captured_at' => '2026-10-22 17:30:00',
+        ]);
+        $second = $this->createRecord($petugas, 'Garapan besar');
+        $second->update([
+            'kabupaten_kota' => 'Kabupaten Malang',
+            'luas_garapan' => 2.50,
+            'captured_at' => '2026-10-23 16:30:00',
+        ]);
+        $other = $this->createRecord($petugas, 'Wilayah lain');
+        $other->update([
+            'kabupaten_kota' => 'Kota Batu',
+            'luas_garapan' => 3.00,
+            'captured_at' => '2026-10-23 04:00:00',
+        ]);
+
+        $this->actingAs($admin)->get('/admin?'.http_build_query([
+            'user_id' => $petugas->id,
+            'kabupaten_kota' => 'Kabupaten Malang',
+            'date_from' => '2026-10-23',
+            'date_to' => '2026-10-23',
+            'luas_min' => '1',
+            'luas_max' => '2.50',
+            'foto' => 'ada',
+            'koordinat' => 'ada',
+            'sort' => 'luas_terbesar',
+        ]))->assertOk()->assertInertia(fn ($page) => $page
+            ->where('summary.total', 3)
+            ->where('records.total', 2)
+            ->where('records.data.0.id', $second->id)
+            ->where('records.data.1.id', $first->id)
+            ->where('filters.date_from', '2026-10-23')
+            ->where('filters.sort', 'luas_terbesar')
+            ->has('kabupatenKotaOptions', 2));
+
+        $this->get('/admin?date_to=2026-10-22')
+            ->assertInertia(fn ($page) => $page->where('records.total', 0));
+    }
+
+    public function test_admin_can_filter_records_missing_photos_or_coordinates(): void
+    {
+        Role::findOrCreate('admin', 'web');
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        $petugas = User::factory()->create();
+        $complete = $this->createRecord($petugas, 'Lengkap');
+        $incomplete = $this->createRecord($petugas, 'Belum lengkap');
+        $incomplete->update(['foto_path' => null, 'longitude' => null]);
+
+        $this->actingAs($admin)->get('/admin?foto=tidak_ada&koordinat=tidak_ada')
+            ->assertOk()->assertInertia(fn ($page) => $page
+            ->where('records.total', 1)
+            ->where('records.data.0.id', $incomplete->id));
+
+        $this->get('/admin?foto=ada&koordinat=ada')
+            ->assertInertia(fn ($page) => $page
+                ->where('records.total', 1)
+                ->where('records.data.0.id', $complete->id));
+    }
+
+    public function test_admin_advanced_filters_reject_invalid_ranges_and_sort_values(): void
+    {
+        Role::findOrCreate('admin', 'web');
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+
+        $this->actingAs($admin)->get('/admin?date_from=2026-10-24&date_to=2026-10-23&luas_min=2&luas_max=1&sort=unknown')
+            ->assertRedirect()
+            ->assertSessionHasErrors(['date_to', 'luas_max', 'sort']);
+    }
+
     public function test_role_and_demo_admin_seeders_are_repeatable_and_dummy_account_is_not_created_in_production(): void
     {
         $existing = User::query()->create([
