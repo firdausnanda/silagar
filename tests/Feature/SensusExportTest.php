@@ -67,6 +67,10 @@ class SensusExportTest extends TestCase
             $this->assertSame(route('sensus.photo', $first->id), $sheet->getCell('H2')->getValue());
             $this->assertSame(DataType::TYPE_STRING, $sheet->getCell('H2')->getDataType());
             $this->assertSame(route('sensus.photo', $first->id), $sheet->getCell('H2')->getHyperlink()->getUrl());
+            $this->assertSame('A2', $sheet->getFreezePane());
+            $this->assertSame('Data sensus', $sheet->getTitle());
+            $this->assertTrue($sheet->getStyle('A1')->getFont()->getBold());
+            $this->assertFalse($sheet->getStyle('A2')->getFont()->getBold());
             $this->assertSame(2, $sheet->getHighestRow());
             $this->assertSame('H', $sheet->getHighestColumn());
         } finally {

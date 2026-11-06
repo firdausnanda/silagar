@@ -30,10 +30,13 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $user = $request->user();
+
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
+                // Only what the pages read: keeps every page payload small and internal columns (e.g. google_sub) private.
+                'user' => $user?->only(['id', 'name', 'email', 'email_verified_at']),
                 'is_admin' => $request->user()?->hasRole('admin') ?? false,
                 'is_impersonating' => $request->user() !== null && app(ImpersonateManager::class)->isImpersonating(),
             ],

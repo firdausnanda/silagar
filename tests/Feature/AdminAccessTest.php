@@ -71,6 +71,12 @@ class AdminAccessTest extends TestCase
 
         $this->get('/admin?user_id='.$firstPetugas->id)
             ->assertInertia(fn ($page) => $page
+                ->reloadOnly(['records', 'filters'], fn ($reload) => $reload
+                    ->has('records.data', 1)
+                    ->where('filters.user_id', (string) $firstPetugas->id)
+                    ->missing('summary')
+                    ->missing('recorders')
+                    ->missing('kabupatenKotaOptions'))
                 ->has('records.data', 1)
                 ->where('records.data.0.nama_kth', 'KTH Rimba Jaya')
                 ->where('records.data.0.nama_penunjuk', 'Pak Hadi')

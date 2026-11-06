@@ -72,26 +72,30 @@ class DashboardController extends Controller
                 'longitude' => $record->longitude === null ? null : (float) $record->longitude,
                 'captured_at' => $record->captured_at?->toIso8601String(),
                 'creator_name' => $record->creator?->name ?? 'Pengguna tidak tersedia',
-                'foto_url' => $record->foto_path === null ? null : route('admin.sensus.photo', $record->id, false),
+                'foto_url' => $record->photoUrl('admin.sensus.photo'),
             ]);
 
-        $summary = DB::table('penggarap_lahans')
-            ->selectRaw('COUNT(*) AS total, COALESCE(SUM(luas_garapan), 0) AS luas')
-            ->first();
-
+        // Closures are only evaluated when the prop is sent: filter and page changes reload
+        // just `records` and `filters`, so these whole-table queries are skipped then.
         return Inertia::render('Admin/Dashboard', [
             'records' => $records,
-            'summary' => [
-                'total' => (int) $summary->total,
-                'luas' => round((float) $summary->luas, 2),
-                'active_users' => User::query()->where('is_active', true)
-                    ->whereDoesntHave('roles', fn ($query) => $query->where('name', 'admin'))
-                    ->count(),
-            ],
-            'recorders' => User::query()->select(['id', 'name'])
+            'summary' => function (): array {
+                $summary = DB::table('penggarap_lahans')
+                    ->selectRaw('COUNT(*) AS total, COALESCE(SUM(luas_garapan), 0) AS luas')
+                    ->first();
+
+                return [
+                    'total' => (int) $summary->total,
+                    'luas' => round((float) $summary->luas, 2),
+                    'active_users' => User::query()->where('is_active', true)
+                        ->whereDoesntHave('roles', fn ($query) => $query->where('name', 'admin'))
+                        ->count(),
+                ];
+            },
+            'recorders' => fn () => User::query()->select(['id', 'name'])
                 ->whereDoesntHave('roles', fn ($query) => $query->where('name', 'admin'))
                 ->orderBy('name')->get(),
-            'kabupatenKotaOptions' => PenggarapLahan::query()->whereNotNull('kabupaten_kota')
+            'kabupatenKotaOptions' => fn () => PenggarapLahan::query()->whereNotNull('kabupaten_kota')
                 ->where('kabupaten_kota', '<>', '')
                 ->distinct()->orderBy('kabupaten_kota')->pluck('kabupaten_kota'),
             'filters' => [

@@ -38,6 +38,23 @@ class PenggarapLahan extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    /**
+     * Short fingerprint of the stored photo, used to version photo URLs so browsers can cache them safely.
+     */
+    public function photoVersion(): ?string
+    {
+        return $this->foto_path === null
+            ? null
+            : substr(hash('sha256', $this->foto_storage.':'.$this->foto_path), 0, 12);
+    }
+
+    public function photoUrl(string $routeName, bool $absolute = false): ?string
+    {
+        return $this->foto_path === null
+            ? null
+            : route($routeName, ['record' => $this->id, 'v' => $this->photoVersion()], $absolute);
+    }
+
     protected function casts(): array
     {
         return [

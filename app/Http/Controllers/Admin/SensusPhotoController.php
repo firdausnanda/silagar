@@ -5,21 +5,13 @@ namespace App\Http\Controllers\Admin;
 use App\GoogleDrivePhotoStorage;
 use App\Http\Controllers\Controller;
 use App\Models\PenggarapLahan;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SensusPhotoController extends Controller
 {
-    public function __invoke(PenggarapLahan $record, GoogleDrivePhotoStorage $photos): StreamedResponse
+    public function __invoke(Request $request, PenggarapLahan $record, GoogleDrivePhotoStorage $photos): StreamedResponse
     {
-        abort_if($record->foto_path === null, 404);
-
-        if ($record->foto_storage === 'google_drive') {
-            return $photos->response($record->foto_path);
-        }
-
-        abort_unless(Storage::disk('local')->exists($record->foto_path), 404);
-
-        return Storage::disk('local')->response($record->foto_path);
+        return $photos->recordResponse($record, $request);
     }
 }

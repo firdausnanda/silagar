@@ -5,10 +5,15 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ExportSensusRequest;
 use App\Models\PenggarapLahan;
 use Illuminate\Validation\ValidationException;
-use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
-use PhpOffice\PhpSpreadsheet\Cell\DataType;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use OpenSpout\Common\Entity\Cell;
+use OpenSpout\Common\Entity\Cell\EmptyCell;
+use OpenSpout\Common\Entity\Cell\NumericCell;
+use OpenSpout\Common\Entity\Cell\StringCell;
+use OpenSpout\Common\Entity\Row;
+use OpenSpout\Common\Entity\Style\Style;
+use OpenSpout\Writer\XLSX\Entity\SheetView;
+use OpenSpout\Writer\XLSX\Options;
+use OpenSpout\Writer\XLSX\Writer;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SensusExportController extends Controller
@@ -58,45 +63,49 @@ class SensusExportController extends Controller
         $photoRouteName = $isAdminExport ? 'admin.sensus.photo' : 'sensus.photo';
         $filename = 'sipintar-hut-'.now('Asia/Jakarta')->format('Ymd-His').'.xlsx';
 
+        // OpenSpout writes rows straight to a temporary file instead of building the whole
+        // workbook in memory, so memory use stays flat regardless of the number of rows.
         return response()->streamDownload(function () use ($records, $columns, $photoRouteName): void {
-            $workbook = new Spreadsheet;
-            $sheet = $workbook->getActiveSheet();
-            $sheet->setTitle('Data sensus');
-
-            foreach ($columns as $index => $column) {
-                $address = Coordinate::stringFromColumnIndex($index + 1).'1';
-                $sheet->setCellValueExplicit($address, self::COLUMN_LABELS[$column], DataType::TYPE_STRING);
-            }
-
-            foreach ($records as $rowIndex => $record) {
-                foreach ($columns as $columnIndex => $column) {
-                    $value = $this->columnValue($record, $column, $photoRouteName);
-                    $address = Coordinate::stringFromColumnIndex($columnIndex + 1).($rowIndex + 2);
-
-                    if (is_string($value)) {
-                        $sheet->setCellValueExplicit($address, $value, DataType::TYPE_STRING);
-
-                        if ($column === 'foto_url') {
-                            $sheet->getCell($address)->getHyperlink()->setUrl($value);
-                        }
-                    } elseif ($value !== null) {
-                        $sheet->setCellValue($address, $value);
-                    }
-                }
-            }
-
-            $sheet->getStyle('A1:'.Coordinate::stringFromColumnIndex(count($columns)).'1')->getFont()->setBold(true);
-            $sheet->freezePane('A2');
+            // Shared strings (not inline) keep cells as plain text for every spreadsheet reader.
+            $writer = new Writer(new Options(SHOULD_USE_INLINE_STRINGS: false));
+            $writer->openToFile('php://output');
 
             try {
-                (new Xlsx($workbook))->save('php://output');
+                $sheet = $writer->getCurrentSheet();
+                $sheet->setName('Data sensus');
+                $sheet->setSheetView(new SheetView(freezeRow: 2));
+
+                $headerStyle = (new Style)->withFontBold(true);
+                $writer->addRow(new Row(array_map(
+                    fn (string $column): StringCell => new StringCell(self::COLUMN_LABELS[$column], $headerStyle),
+                    $columns,
+                )));
+
+                foreach ($records as $record) {
+                    $writer->addRow(new Row(array_map(
+                        fn (string $column): Cell => $this->cell($this->columnValue($record, $column, $photoRouteName), $column),
+                        $columns,
+                    )));
+                }
             } finally {
-                $workbook->disconnectWorksheets();
+                $writer->close();
             }
         }, $filename, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'Cache-Control' => 'private, no-store',
         ]);
+    }
+
+    /**
+     * Strings are always written as text cells (never formulas), so values such as "=2+2" or phone numbers stay literal.
+     */
+    private function cell(string|float|int|null $value, string $column): Cell
+    {
+        return match (true) {
+            is_string($value) => new StringCell($value, null, null, $column === 'foto_url' ? $value : null),
+            $value === null => new EmptyCell(null),
+            default => new NumericCell($value),
+        };
     }
 
     private function columnValue(PenggarapLahan $record, string $column, string $photoRouteName): string|float|int|null

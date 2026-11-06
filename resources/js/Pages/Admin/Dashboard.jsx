@@ -11,6 +11,8 @@ const dateFormat = new Intl.DateTimeFormat('id-ID', {
     hour: '2-digit', minute: '2-digit',
 });
 const filterInputClass = 'min-h-11 w-full rounded-lg border-stone-500 bg-white text-base text-stone-900 focus:border-forest focus:ring-forest';
+// Filter and page changes only need fresh records; summary and dropdown options stay as loaded.
+const RECORD_PROPS = ['records', 'filters'];
 const filterLabelClass = 'mb-1 block text-sm font-semibold text-stone-700';
 
 export default function Dashboard({ records, summary, recorders, kabupatenKotaOptions, filters }) {
@@ -44,11 +46,11 @@ export default function Dashboard({ records, summary, recorders, kabupatenKotaOp
             ...(search.trim() ? { search: search.trim() } : {}),
             ...(userId ? { user_id: userId } : {}),
             ...Object.fromEntries(Object.entries(advancedFilters).filter(([key, value]) => value !== '' && !(key === 'sort' && value === 'terbaru'))),
-        }, { preserveState: true, replace: true });
+        }, { only: RECORD_PROPS, preserveState: true, replace: true });
     };
 
     const resetFilters = () => {
-        router.get(route('admin.dashboard'), {}, { replace: true });
+        router.get(route('admin.dashboard'), {}, { only: RECORD_PROPS, replace: true });
     };
 
     return (
@@ -198,8 +200,8 @@ export default function Dashboard({ records, summary, recorders, kabupatenKotaOp
                 <div className="mt-5 flex items-center justify-between gap-3 text-sm">
                     <span className="text-stone-600">Halaman {records.current_page} dari {records.last_page}</span>
                     <div className="flex gap-2">
-                        {records.prev_page_url && <Link href={records.prev_page_url} preserveState className="rounded-lg border border-stone-300 px-4 py-2 font-semibold text-forest focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest">Sebelumnya</Link>}
-                        {records.next_page_url && <Link href={records.next_page_url} preserveState className="rounded-lg border border-stone-300 px-4 py-2 font-semibold text-forest focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest">Berikutnya</Link>}
+                        {records.prev_page_url && <Link href={records.prev_page_url} only={RECORD_PROPS} preserveState className="rounded-lg border border-stone-300 px-4 py-2 font-semibold text-forest focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest">Sebelumnya</Link>}
+                        {records.next_page_url && <Link href={records.next_page_url} only={RECORD_PROPS} preserveState className="rounded-lg border border-stone-300 px-4 py-2 font-semibold text-forest focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest">Berikutnya</Link>}
                     </div>
                 </div>
             </section>

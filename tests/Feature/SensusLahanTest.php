@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\GoogleDrivePhotoStorage;
+use App\Jobs\UploadSensusPhotoToDrive;
 use App\Models\PenggarapLahan;
 use App\Models\User;
 use GuzzleHttp\Promise\PromiseInterface;
@@ -11,8 +13,10 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Mockery;
+use RuntimeException;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -55,9 +59,110 @@ class SensusLahanTest extends TestCase
             ->assertStreamedContent('image-content');
     }
 
-    public function test_drive_upload_failure_does_not_create_a_bidang(): void
+    public function test_versioned_photo_urls_are_cacheable_and_unversioned_ones_revalidate(): void
     {
         Storage::fake('local');
+        $owner = User::factory()->create();
+        Role::findOrCreate('admin', 'web');
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+
+        $fotoUrl = $this->actingAs($owner)->postJson('/sensus', $this->validPayload())
+            ->assertCreated()->json('data.foto_url');
+        $record = PenggarapLahan::firstOrFail();
+
+        $this->assertSame(route('sensus.photo', ['record' => $record->id, 'v' => $record->photoVersion()], false), $fotoUrl);
+        $this->get($fotoUrl)->assertOk()
+            ->assertHeader('Cache-Control', 'immutable, max-age=31536000, private');
+        $this->get(route('sensus.photo', $record->id))->assertOk()
+            ->assertHeader('Cache-Control', 'no-cache, private');
+        $this->get(route('sensus.photo', ['record' => $record->id, 'v' => 'kedaluwarsa']))->assertOk()
+            ->assertHeader('Cache-Control', 'no-cache, private');
+
+        $this->actingAs($admin)->get(route('admin.sensus.photo', ['record' => $record->id, 'v' => $record->photoVersion()]))
+            ->assertOk()->assertHeader('Cache-Control', 'immutable, max-age=31536000, private');
+    }
+
+    public function test_drive_photo_folders_are_cached_between_uploads_and_refreshed_when_removed(): void
+    {
+        Storage::fake('local');
+        $this->configureDrivePhotoConnection();
+        $folderRemoved = false;
+        $uploadParents = [];
+        Http::preventStrayRequests();
+        Http::fake([
+            ...$this->drivePhotoResponses(),
+            'https://www.googleapis.com/drive/v3/files?*' => function (Request $request) use (&$folderRemoved) {
+                $query = $request->data()['q'] ?? '';
+
+                return Http::response(['files' => [[
+                    'id' => match (true) {
+                        str_contains($query, "value='root'") => 'photo-root-id',
+                        $folderRemoved => 'petugas-folder-baru',
+                        default => 'petugas-folder-id',
+                    },
+                ]]]);
+            },
+            'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable*' => function (Request $request) use (&$uploadParents, &$folderRemoved) {
+                $parent = $request->data()['parents'][0];
+                $uploadParents[] = $parent;
+
+                return $folderRemoved && $parent === 'petugas-folder-id'
+                    ? Http::response([], 404)
+                    : Http::response([], 200, ['Location' => 'https://www.googleapis.com/upload/drive/v3/files?upload_id=photo-123']);
+            },
+        ]);
+        $owner = User::factory()->create();
+
+        foreach (['01', '02'] as $suffix) {
+            $payload = $this->validPayload();
+            $payload['client_uuid'] = '11223344-0000-4000-8000-0000000000'.$suffix;
+            $this->actingAs($owner)->postJson('/sensus', $payload)->assertCreated();
+        }
+
+        Http::assertSentCount(8);
+        $this->assertSame(['petugas-folder-id', 'petugas-folder-id'], $uploadParents);
+
+        $folderRemoved = true;
+        $payload = $this->validPayload();
+        $payload['client_uuid'] = '11223344-0000-4000-8000-000000000003';
+        $this->postJson('/sensus', $payload)->assertCreated();
+
+        $this->assertSame(['petugas-folder-id', 'petugas-folder-id', 'petugas-folder-id', 'petugas-folder-baru'], $uploadParents);
+    }
+
+    public function test_new_photo_is_saved_locally_and_queued_for_drive(): void
+    {
+        Storage::fake('local');
+        Queue::fake();
+        $this->configureDrivePhotoConnection();
+        Http::preventStrayRequests();
+
+        $this->actingAs(User::factory()->create())->postJson('/sensus', $this->validPayload())->assertCreated();
+
+        $record = PenggarapLahan::firstOrFail();
+        $this->assertSame('local', $record->foto_storage);
+        Storage::disk('local')->assertExists($record->foto_path);
+        Queue::assertPushed(UploadSensusPhotoToDrive::class, fn (UploadSensusPhotoToDrive $job) => $job->recordId === $record->id
+            && $job->localPath === $record->foto_path);
+        Http::assertNothingSent();
+    }
+
+    public function test_photo_is_not_queued_when_drive_is_not_connected(): void
+    {
+        Storage::fake('local');
+        Queue::fake();
+
+        $this->actingAs(User::factory()->create())->postJson('/sensus', $this->validPayload())->assertCreated();
+
+        $this->assertSame('local', PenggarapLahan::firstOrFail()->foto_storage);
+        Queue::assertNothingPushed();
+    }
+
+    public function test_drive_upload_failure_keeps_the_bidang_with_its_local_photo(): void
+    {
+        Storage::fake('local');
+        Queue::fake();
         $this->configureDrivePhotoConnection();
         Http::preventStrayRequests();
         Http::fake([
@@ -71,11 +176,51 @@ class SensusLahanTest extends TestCase
             },
             'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable*' => Http::response([], 403),
         ]);
+        $owner = User::factory()->create();
 
-        $this->actingAs(User::factory()->create())->postJson('/sensus', $this->validPayload())
-            ->assertInternalServerError();
+        $this->actingAs($owner)->postJson('/sensus', $this->validPayload())->assertCreated();
+        $record = PenggarapLahan::firstOrFail();
 
-        $this->assertDatabaseCount('penggarap_lahans', 0);
+        $this->runQueuedDriveUpload($record, expectFailure: true);
+
+        $record->refresh();
+        $this->assertSame('local', $record->foto_storage);
+        Storage::disk('local')->assertExists($record->foto_path);
+        $this->get($record->photoUrl('sensus.photo'))->assertOk();
+    }
+
+    public function test_queued_upload_is_discarded_when_the_photo_changed_meanwhile(): void
+    {
+        Storage::fake('local');
+        Queue::fake();
+        $this->configureDrivePhotoConnection();
+        Http::preventStrayRequests();
+        Http::fake($this->drivePhotoResponses());
+        $owner = User::factory()->create();
+        $this->actingAs($owner)->postJson('/sensus', $this->validPayload())->assertCreated();
+        $record = PenggarapLahan::firstOrFail();
+        $job = new UploadSensusPhotoToDrive($record->id, $record->foto_path);
+
+        // Photo replaced after the upload already reached Drive: the uploaded file is removed again.
+        $replacedPath = 'sensus/'.$owner->id.'/pengganti.jpg';
+        Storage::disk('local')->put($replacedPath, 'foto pengganti');
+        $photos = Mockery::mock(GoogleDrivePhotoStorage::class);
+        $photos->shouldReceive('isEnabled')->andReturnTrue();
+        $photos->shouldReceive('storeLocalFile')->once()->andReturnUsing(function () use ($record, $replacedPath): string {
+            PenggarapLahan::query()->whereKey($record->id)->update(['foto_path' => $replacedPath]);
+
+            return 'photo-file-id';
+        });
+        $photos->shouldReceive('delete')->once()->with('photo-file-id')->andReturnTrue();
+        $job->handle($photos);
+
+        $this->assertSame($replacedPath, $record->fresh()->foto_path);
+        $this->assertSame('local', $record->fresh()->foto_storage);
+
+        // Record deleted before the job ran: nothing is uploaded.
+        $record->fresh()->delete();
+        $job->handle(app(GoogleDrivePhotoStorage::class));
+        Http::assertNotSent(fn (Request $request) => str_contains($request->url(), '/upload/drive/'));
     }
 
     public function test_drive_creates_one_photo_folder_per_petugas_and_reuses_it(): void
@@ -157,8 +302,10 @@ class SensusLahanTest extends TestCase
         ], $uploadParents);
     }
 
-    public function test_drive_folder_failure_stops_the_photo_upload_and_record_creation(): void
+    public function test_drive_folder_failure_stops_the_upload_and_keeps_the_local_photo(): void
     {
+        Storage::fake('local');
+        Queue::fake();
         $this->configureDrivePhotoConnection();
         Http::preventStrayRequests();
         Http::fake([
@@ -170,10 +317,13 @@ class SensusLahanTest extends TestCase
             'https://www.googleapis.com/drive/v3/files?*' => Http::response([], 403),
         ]);
 
-        $this->actingAs(User::factory()->create())->postJson('/sensus', $this->validPayload())
-            ->assertInternalServerError();
+        $this->actingAs(User::factory()->create())->postJson('/sensus', $this->validPayload())->assertCreated();
+        $record = PenggarapLahan::firstOrFail();
 
-        $this->assertDatabaseCount('penggarap_lahans', 0);
+        $this->runQueuedDriveUpload($record, expectFailure: true);
+
+        $this->assertSame('local', $record->fresh()->foto_storage);
+        Storage::disk('local')->assertExists($record->foto_path);
         Http::assertNotSent(fn (Request $request) => str_contains($request->url(), '/upload/drive/'));
     }
 
@@ -596,9 +746,10 @@ class SensusLahanTest extends TestCase
         Storage::disk('local')->assertExists($photoPath);
     }
 
-    public function test_failed_drive_replacement_preserves_the_original_photo(): void
+    public function test_failed_drive_upload_of_a_replacement_keeps_the_new_local_photo(): void
     {
         Storage::fake('local');
+        Queue::fake();
         $owner = User::factory()->create();
         $this->actingAs($owner)->postJson('/sensus', $this->validPayload())->assertCreated();
         $record = PenggarapLahan::firstOrFail();
@@ -619,18 +770,22 @@ class SensusLahanTest extends TestCase
 
         $this->post(route('sensus.update', $record->id), [
             '_method' => 'PATCH',
-            'nama' => 'Nama gagal disimpan',
+            'nama' => 'Nama baru',
             'no_hp' => null,
             'luas_garapan' => 0.75,
             'lama_menggarap' => 8,
             'foto' => UploadedFile::fake()->image('foto-baru.jpg'),
-        ], ['Accept' => 'application/json'])->assertInternalServerError();
+        ], ['Accept' => 'application/json'])->assertOk();
 
         $record->refresh();
-        $this->assertSame('Siti Aminah', $record->nama);
-        $this->assertSame('local', $record->foto_storage);
-        $this->assertSame($photoPath, $record->foto_path);
-        Storage::disk('local')->assertExists($photoPath);
+        $this->assertSame('Nama baru', $record->nama);
+        $this->assertNotSame($photoPath, $record->foto_path);
+        Storage::disk('local')->assertMissing($photoPath);
+
+        $this->runQueuedDriveUpload($record, expectFailure: true);
+
+        $this->assertSame('local', $record->fresh()->foto_storage);
+        Storage::disk('local')->assertExists($record->foto_path);
     }
 
     public function test_other_petugas_cannot_update_a_bidang(): void
@@ -723,6 +878,25 @@ class SensusLahanTest extends TestCase
             'gps_accuracy_m' => 4.5,
             'captured_at' => '2026-10-08T09:15:00+07:00',
         ];
+    }
+
+    private function runQueuedDriveUpload(PenggarapLahan $record, bool $expectFailure = false): void
+    {
+        $job = null;
+        Queue::assertPushed(UploadSensusPhotoToDrive::class, function (UploadSensusPhotoToDrive $pushed) use ($record, &$job): bool {
+            if ($pushed->recordId === $record->id && $pushed->localPath === $record->foto_path) {
+                $job = $pushed;
+            }
+
+            return $job !== null;
+        });
+
+        try {
+            $job->handle(app(GoogleDrivePhotoStorage::class));
+            $this->assertFalse($expectFailure, 'Unggahan Drive seharusnya gagal.');
+        } catch (RuntimeException $exception) {
+            $this->assertTrue($expectFailure, $exception->getMessage());
+        }
     }
 
     private function configureDrivePhotoConnection(): void

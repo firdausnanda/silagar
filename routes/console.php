@@ -14,6 +14,7 @@ Schedule::command('backup:google-drive')
     ->withoutOverlapping(65)
     ->onOneServer();
 
+// Every 5 minutes is plenty for server stats and avoids booting PHP every minute on the small VPS.
 Schedule::command('pulse:check --once')
-    ->everyMinute()
+    ->everyFiveMinutes()
     ->withoutOverlapping();

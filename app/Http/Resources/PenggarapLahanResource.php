@@ -32,7 +32,7 @@ class PenggarapLahanResource extends JsonResource
             'gps_accuracy_m' => $this->gps_accuracy_m === null ? null : (float) $this->gps_accuracy_m,
             'captured_at' => $this->captured_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
-            'foto_url' => $this->foto_path === null ? null : route('sensus.photo', $this->id, false).'?v='.substr(hash('sha256', $this->foto_storage.':'.$this->foto_path), 0, 12),
+            'foto_url' => $this->photoUrl('sensus.photo'),
         ];
     }
 }

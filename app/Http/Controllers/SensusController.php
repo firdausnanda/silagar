@@ -7,6 +7,7 @@ use App\Helpers\UtmConverter;
 use App\Http\Requests\StoreSensusRequest;
 use App\Http\Requests\UpdateSensusRequest;
 use App\Http\Resources\PenggarapLahanResource;
+use App\Jobs\UploadSensusPhotoToDrive;
 use App\Models\PenggarapLahan;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
@@ -32,13 +33,8 @@ class SensusController extends Controller
             return (new PenggarapLahanResource($existing))->response();
         }
 
-        $fotoStorage = $photos->isEnabled() ? 'google_drive' : 'local';
-        $fotoPath = $fotoStorage === 'google_drive'
-            ? $photos->store($request->file('foto'), $request->user())
-            : $request->file('foto')->store('sensus/'.$request->user()->id, 'local');
-        if ($fotoPath === false) {
-            throw new RuntimeException('Foto sensus tidak dapat disimpan.');
-        }
+        $fotoStorage = 'local';
+        $fotoPath = $this->storeLocalPhoto($request);
 
         try {
             $utmCoordinates = UtmConverter::fromCoordinates((float) $data['latitude'], (float) $data['longitude']);
@@ -78,6 +74,8 @@ class SensusController extends Controller
             throw $exception;
         }
 
+        $this->queueDriveUpload($record, $photos);
+
         return (new PenggarapLahanResource($record))->response()->setStatusCode(201);
     }
 
@@ -87,15 +85,7 @@ class SensusController extends Controller
             ->where('created_by', $request->user()->id)
             ->findOrFail($record);
 
-        abort_if($penggarapLahan->foto_path === null, 404);
-
-        if ($penggarapLahan->foto_storage === 'google_drive') {
-            return $photos->response($penggarapLahan->foto_path);
-        }
-
-        abort_unless(Storage::disk('local')->exists($penggarapLahan->foto_path), 404);
-
-        return Storage::disk('local')->response($penggarapLahan->foto_path);
+        return $photos->recordResponse($penggarapLahan, $request);
     }
 
     public function update(UpdateSensusRequest $request, int $record, GoogleDrivePhotoStorage $photos): JsonResponse
@@ -109,13 +99,8 @@ class SensusController extends Controller
         $newPhotoStorage = null;
 
         if ($request->hasFile('foto')) {
-            $newPhotoStorage = $photos->isEnabled() ? 'google_drive' : 'local';
-            $newPhotoPath = $newPhotoStorage === 'google_drive'
-                ? $photos->store($request->file('foto'), $request->user())
-                : $request->file('foto')->store('sensus/'.$request->user()->id, 'local');
-            if ($newPhotoPath === false) {
-                throw new RuntimeException('Foto sensus tidak dapat disimpan.');
-            }
+            $newPhotoStorage = 'local';
+            $newPhotoPath = $this->storeLocalPhoto($request);
             $data['foto_path'] = $newPhotoPath;
             $data['foto_storage'] = $newPhotoStorage;
         }
@@ -143,6 +128,10 @@ class SensusController extends Controller
             $this->deletePhoto($oldPhotoStorage, $oldPhotoPath, $photos);
         }
 
+        if ($newPhotoPath !== null) {
+            $this->queueDriveUpload($penggarapLahan, $photos);
+        }
+
         return (new PenggarapLahanResource($penggarapLahan))->response();
     }
 
@@ -161,6 +150,27 @@ class SensusController extends Controller
         }
 
         return response()->noContent();
+    }
+
+    /**
+     * Photos always land on the local disk first so the request returns quickly;
+     * moving them to Google Drive happens in the queue.
+     */
+    private function storeLocalPhoto(Request $request): string
+    {
+        $path = $request->file('foto')->store('sensus/'.$request->user()->id, 'local');
+        if ($path === false) {
+            throw new RuntimeException('Foto sensus tidak dapat disimpan.');
+        }
+
+        return $path;
+    }
+
+    private function queueDriveUpload(PenggarapLahan $record, GoogleDrivePhotoStorage $photos): void
+    {
+        if ($photos->isEnabled()) {
+            UploadSensusPhotoToDrive::dispatch($record->id, $record->foto_path);
+        }
     }
 
     private function deletePhoto(string $fotoStorage, string $fotoPath, GoogleDrivePhotoStorage $photos): void
